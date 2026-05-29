@@ -24,8 +24,32 @@ __export(detect_framework_exports, {
   detectFramework: () => detectFramework
 });
 module.exports = __toCommonJS(detect_framework_exports);
-function detectFramework(_projectRoot) {
+var import_node_fs = require("fs");
+var import_node_path = require("path");
+function readDeps(projectRoot) {
+  try {
+    const raw = (0, import_node_fs.readFileSync)((0, import_node_path.join)(projectRoot, "package.json"), "utf8");
+    const pkg = JSON.parse(raw);
+    return {
+      ...pkg.dependencies,
+      ...pkg.devDependencies,
+      ...pkg.peerDependencies
+    };
+  } catch {
+    return {};
+  }
+}
+function detectFramework(projectRoot) {
+  const deps = readDeps(projectRoot);
+  if ("@angular/core" in deps) return "angular";
+  if ("svelte" in deps) return "svelte";
+  if ("vue" in deps) return "vue";
+  if ("react" in deps) return "react";
   return "unknown";
+}
+if (require.main === module) {
+  const projectRoot = process.argv[2] ?? process.cwd();
+  process.stdout.write(detectFramework(projectRoot) + "\n");
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {

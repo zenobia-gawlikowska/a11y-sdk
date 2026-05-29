@@ -21,6 +21,9 @@ export default defineConfig([
     outDir: "toolkit/scripts",
     clean: false,
     sourcemap: false,
+    // eslint is a peer dep in the developer's project — never bundle it
+    // playwright and @axe-core/playwright are also peer deps (Phase 4)
+    external: ["eslint", "playwright", "@axe-core/playwright"],
     banner: { js: "#!/usr/bin/env node" },
   },
 ]);

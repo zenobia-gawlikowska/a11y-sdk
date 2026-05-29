@@ -25,6 +25,8 @@ __export(config_loader_exports, {
   loadConfig: () => loadConfig
 });
 module.exports = __toCommonJS(config_loader_exports);
+var import_node_fs = require("fs");
+var import_node_path = require("path");
 var defaultConfig = {
   wcagLevel: "AA",
   rules: {
@@ -38,8 +40,54 @@ var defaultConfig = {
     images: true
   }
 };
-function loadConfig(_projectRoot) {
-  return defaultConfig;
+var CONFIG_PATH = ".a11y/config/a11y.config.json";
+function isRuleFlags(obj) {
+  if (typeof obj !== "object" || obj === null) return false;
+  const keys = [
+    "focus-management",
+    "aria-roles",
+    "keyboard-navigation",
+    "color-contrast",
+    "form-labeling",
+    "landmark-structure",
+    "live-regions",
+    "images"
+  ];
+  return keys.every((k) => typeof obj[k] === "boolean");
+}
+function isA11yConfig(obj) {
+  if (typeof obj !== "object" || obj === null) return false;
+  const record = obj;
+  if (record["wcagLevel"] !== "AA" && record["wcagLevel"] !== "AAA") return false;
+  return isRuleFlags(record["rules"]);
+}
+function loadConfig(projectRoot) {
+  const configPath = (0, import_node_path.join)(projectRoot, CONFIG_PATH);
+  let raw;
+  try {
+    raw = (0, import_node_fs.readFileSync)(configPath, "utf8");
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      return { ...defaultConfig, rules: { ...defaultConfig.rules } };
+    }
+    throw new Error(
+      `a11y-sdk: could not read config at ${configPath}: ${String(err)}`
+    );
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(
+      `a11y-sdk: malformed JSON in ${configPath}. Fix the syntax error and try again.`
+    );
+  }
+  if (!isA11yConfig(parsed)) {
+    throw new Error(
+      `a11y-sdk: invalid config shape in ${configPath}. Expected { wcagLevel: "AA"|"AAA", rules: { ... } } with all rule flags as booleans.`
+    );
+  }
+  return parsed;
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
