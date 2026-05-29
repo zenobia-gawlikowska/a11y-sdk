@@ -1,0 +1,14 @@
+{
+  "$schema": "./.schema.json",
+  "wcagLevel": "AA",
+  "rules": {
+    "focus-management": true,
+    "aria-roles": true,
+    "keyboard-navigation": true,
+    "color-contrast": true,
+    "form-labeling": true,
+    "landmark-structure": true,
+    "live-regions": true,
+    "images": true
+  }
+}
