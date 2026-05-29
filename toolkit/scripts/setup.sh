@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# a11y-sdk setup script
+# Wires the git pre-commit hook, installs the appropriate ESLint a11y plugin,
+# and patches/creates AI context wrapper files at the project root.
+# Run once after copying .a11y/ into your project root.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+A11Y_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PROJECT_ROOT="$(cd "${A11Y_DIR}/.." && pwd)"
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+info()    { echo -e "${GREEN}✔${NC} $*"; }
+warn()    { echo -e "${YELLOW}⚠${NC} $*"; }
+error()   { echo -e "${RED}✖${NC} $*" >&2; }
+
+# ---------------------------------------------------------------------------
+# Step 1: Monorepo check — .a11y/ must be at the git root
+# ---------------------------------------------------------------------------
+GIT_ROOT="$(git -C "${PROJECT_ROOT}" rev-parse --show-toplevel 2>/dev/null || true)"
+
+if [ -z "${GIT_ROOT}" ]; then
+  error ".a11y/ is not inside a git repository. Initialize git first: git init"
+  exit 1
+fi
+
+if [ "$(realpath "${GIT_ROOT}")" != "$(realpath "${PROJECT_ROOT}")" ]; then
+  error ".a11y/ must be at the git root for core.hooksPath to work."
+  error "Move it to: ${GIT_ROOT}/.a11y/ and re-run setup.sh from there."
+  echo ""
+  echo "  mv .a11y/ \"${GIT_ROOT}/.a11y/\""
+  echo "  cd \"${GIT_ROOT}\""
+  echo "  bash .a11y/scripts/setup.sh"
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Step 2: Make hook executable
+# ---------------------------------------------------------------------------
+chmod +x "${A11Y_DIR}/hooks/pre-commit"
+info "Hook made executable: .a11y/hooks/pre-commit"
+
+# ---------------------------------------------------------------------------
+# Step 3: Wire the git hook
+# ---------------------------------------------------------------------------
+git -C "${PROJECT_ROOT}" config core.hooksPath .a11y/hooks
+info "Git hook wired: core.hooksPath = .a11y/hooks"
+
+# ---------------------------------------------------------------------------
+# Step 4: Detect package manager
+# ---------------------------------------------------------------------------
+detect_package_manager() {
+  if [ -f "${PROJECT_ROOT}/pnpm-lock.yaml" ]; then
+    echo "pnpm"
+  elif [ -f "${PROJECT_ROOT}/yarn.lock" ]; then
+    echo "yarn"
+  elif [ -f "${PROJECT_ROOT}/bun.lockb" ]; then
+    echo "bun"
+  else
+    echo "npm"
+  fi
+}
+
+PM="$(detect_package_manager)"
+info "Detected package manager: ${PM}"
+
+# ---------------------------------------------------------------------------
+# Step 5: Detect framework
+# ---------------------------------------------------------------------------
+FRAMEWORK="$(node "${SCRIPT_DIR}/detect-framework.cjs" "${PROJECT_ROOT}" 2>/dev/null || echo "unknown")"
+info "Detected framework: ${FRAMEWORK}"
+
+# ---------------------------------------------------------------------------
+# Step 6: Install ESLint a11y plugin
+# ---------------------------------------------------------------------------
+install_deps() {
+  case "${PM}" in
+    pnpm) pnpm add --save-dev "$@" ;;
+    yarn) yarn add --dev "$@" ;;
+    bun)  bun add --dev "$@" ;;
+    *)    npm install --save-dev "$@" ;;
+  esac
+}
+
+case "${FRAMEWORK}" in
+  react)
+    info "Installing eslint-plugin-jsx-a11y@^6.9.0 …"
+    install_deps "eslint-plugin-jsx-a11y@^6.9.0"
+    ;;
+  vue)
+    info "Installing eslint-plugin-vuejs-accessibility@^2.3.0 eslint-plugin-vue …"
+    install_deps "eslint-plugin-vuejs-accessibility@^2.3.0" "eslint-plugin-vue"
+    ;;
+  svelte)
+    # Svelte plugin v3 requires Node >= 18.20.4
+    NODE_VERSION="$(node --version | sed 's/v//')"
+    NODE_MAJOR="$(echo "${NODE_VERSION}" | cut -d. -f1)"
+    NODE_MINOR="$(echo "${NODE_VERSION}" | cut -d. -f2)"
+    NODE_PATCH="$(echo "${NODE_VERSION}" | cut -d. -f3)"
+    if [ "${NODE_MAJOR}" -lt 18 ] || \
+       { [ "${NODE_MAJOR}" -eq 18 ] && [ "${NODE_MINOR}" -lt 20 ]; } || \
+       { [ "${NODE_MAJOR}" -eq 18 ] && [ "${NODE_MINOR}" -eq 20 ] && [ "${NODE_PATCH}" -lt 4 ]; }; then
+      warn "eslint-plugin-svelte v3 requires Node >= 18.20.4 (you have ${NODE_VERSION}). Upgrade Node or switch to a compatible version."
+    fi
+    info "Installing eslint-plugin-svelte@^3.0.0 …"
+    install_deps "eslint-plugin-svelte@^3.0.0"
+    ;;
+  angular)
+    info "Installing @angular-eslint/eslint-plugin-template@^18.0.0 …"
+    install_deps "@angular-eslint/eslint-plugin-template@^18.0.0"
+    ;;
+  unknown)
+    warn "Framework not detected. Install the appropriate ESLint a11y plugin manually:"
+    echo "  React:   ${PM} add --save-dev eslint-plugin-jsx-a11y@^6.9.0"
+    echo "  Vue:     ${PM} add --save-dev eslint-plugin-vuejs-accessibility@^2.3.0 eslint-plugin-vue"
+    echo "  Svelte:  ${PM} add --save-dev eslint-plugin-svelte@^3.0.0"
+    echo "  Angular: ${PM} add --save-dev @angular-eslint/eslint-plugin-template@^18.0.0"
+    ;;
+esac
+
+# ---------------------------------------------------------------------------
+# Step 7: Patch CLAUDE.md (append if exists, create if not)
+# ---------------------------------------------------------------------------
+CLAUDE_MD="${PROJECT_ROOT}/CLAUDE.md"
+A11Y_MARKER="@.a11y/context.md"
+
+if [ -f "${CLAUDE_MD}" ]; then
+  if grep -qF "${A11Y_MARKER}" "${CLAUDE_MD}"; then
+    info "CLAUDE.md already contains a11y context reference — skipping"
+  else
+    printf "\n\n%s\n" "${A11Y_MARKER}" >> "${CLAUDE_MD}"
+    info "CLAUDE.md: appended a11y context reference"
+  fi
+else
+  cp "${A11Y_DIR}/wrappers/CLAUDE.md" "${CLAUDE_MD}"
+  info "CLAUDE.md: created from .a11y/wrappers/CLAUDE.md"
+fi
+
+# ---------------------------------------------------------------------------
+# Step 8: Create .cursorrules (never overwrites)
+# ---------------------------------------------------------------------------
+CURSORRULES="${PROJECT_ROOT}/.cursorrules"
+if [ -f "${CURSORRULES}" ]; then
+  info ".cursorrules already exists — skipping"
+else
+  cp "${A11Y_DIR}/wrappers/.cursorrules" "${CURSORRULES}"
+  info ".cursorrules: created from .a11y/wrappers/.cursorrules"
+fi
+
+# ---------------------------------------------------------------------------
+# Step 9: Create AGENTS.md (never overwrites)
+# ---------------------------------------------------------------------------
+AGENTS_MD="${PROJECT_ROOT}/AGENTS.md"
+if [ -f "${AGENTS_MD}" ]; then
+  info "AGENTS.md already exists — skipping"
+else
+  cp "${A11Y_DIR}/wrappers/AGENTS.md" "${AGENTS_MD}"
+  info "AGENTS.md: created from .a11y/wrappers/AGENTS.md"
+fi
+
+# ---------------------------------------------------------------------------
+# Step 10: Summary
+# ---------------------------------------------------------------------------
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  a11y-sdk setup complete"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "  Layer 1 (AI context):  active immediately"
+echo "  Layer 2 (static hook): active on next commit"
+echo "  Layer 3 (audit):       run 'node .a11y/scripts/audit.cjs <url>'"
+echo ""
+echo "  Config:  .a11y/config/a11y.config.json"
+echo "  Rules:   .a11y/rules/"
+echo ""
