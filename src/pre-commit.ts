@@ -39,7 +39,7 @@ const WCAG_MAP: Record<string, string> = {
   "jsx-a11y/no-noninteractive-tabindex": "2.1.1 Keyboard",
   "jsx-a11y/no-redundant-roles": "4.1.2 Name, Role, Value",
   "jsx-a11y/no-static-element-interactions": "2.1.1 Keyboard",
-  "jsx-a11y/prefer-tag-to-role": "4.1.2 Name, Role, Value",
+  "jsx-a11y/prefer-tag-over-role": "4.1.2 Name, Role, Value",
   "jsx-a11y/role-has-required-aria-props": "4.1.2 Name, Role, Value",
   "jsx-a11y/role-supports-aria-props": "4.1.2 Name, Role, Value",
   "jsx-a11y/scope": "1.3.1 Info and Relationships",
