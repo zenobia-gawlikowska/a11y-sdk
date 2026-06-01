@@ -4,6 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { detectFramework, type Framework } from "./detect-framework.js";
 import { loadConfig } from "./config-loader.js";
+import { CATEGORY_RULE_PREFIXES, isRuleEnabled } from "./rule-filter.js";
 
 // ---------------------------------------------------------------------------
 // WCAG criterion map: ESLint rule ID → WCAG success criterion
@@ -38,7 +39,7 @@ const WCAG_MAP: Record<string, string> = {
   "jsx-a11y/no-noninteractive-tabindex": "2.1.1 Keyboard",
   "jsx-a11y/no-redundant-roles": "4.1.2 Name, Role, Value",
   "jsx-a11y/no-static-element-interactions": "2.1.1 Keyboard",
-  "jsx-a11y/prefer-tag-to-role": "4.1.2 Name, Role, Value",
+  "jsx-a11y/prefer-tag-over-role": "4.1.2 Name, Role, Value",
   "jsx-a11y/role-has-required-aria-props": "4.1.2 Name, Role, Value",
   "jsx-a11y/role-supports-aria-props": "4.1.2 Name, Role, Value",
   "jsx-a11y/scope": "1.3.1 Info and Relationships",
@@ -63,24 +64,6 @@ const WCAG_MAP: Record<string, string> = {
   "vuejs-accessibility/no-redundant-roles": "4.1.2 Name, Role, Value",
   "vuejs-accessibility/role-has-required-aria-props": "4.1.2 Name, Role, Value",
   "vuejs-accessibility/tabindex-no-positive": "2.4.3 Focus Order",
-};
-
-// ---------------------------------------------------------------------------
-// Config-to-ESLint-rule category mapping
-// ---------------------------------------------------------------------------
-const CATEGORY_RULE_PREFIXES: Record<string, string[]> = {
-  "focus-management": ["no-autofocus", "interactive-supports-focus"],
-  "aria-roles": ["aria-role", "aria-props", "aria-proptypes", "role-"],
-  "keyboard-navigation": ["click-events-have-key-events", "mouse-events-have-key-events",
-    "no-noninteractive-tabindex", "tabindex-no-positive", "no-access-key",
-    "interactive-supports-focus", "no-static-element-interactions",
-    "no-noninteractive-element-interactions", "no-noninteractive-element-to-interactive-role"],
-  "color-contrast": [], // Static analysis can't catch contrast; placeholder
-  "form-labeling": ["label-has-associated-control", "label-has-for", "form-control-has-label",
-    "autocomplete-valid"],
-  "landmark-structure": ["html-has-lang"],
-  "live-regions": [], // Runtime pattern; static analysis limited
-  "images": ["alt-text", "img-redundant-alt"],
 };
 
 // ---------------------------------------------------------------------------
@@ -112,19 +95,6 @@ function getExtensionsForFramework(fw: Framework): string[] {
 function filterStagedFiles(files: string[], framework: Framework): string[] {
   const exts = getExtensionsForFramework(framework);
   return files.filter((f) => exts.some((ext) => f.endsWith(ext)));
-}
-
-function isRuleEnabled(ruleId: string, config: ReturnType<typeof loadConfig>): boolean {
-  const shortId = ruleId.includes("/") ? ruleId.split("/")[1]! : ruleId;
-  for (const [category, enabled] of Object.entries(config.rules)) {
-    if (!enabled) {
-      const prefixes = CATEGORY_RULE_PREFIXES[category] ?? [];
-      if (prefixes.some((p) => shortId.startsWith(p) || shortId === p)) {
-        return false;
-      }
-    }
-  }
-  return true;
 }
 
 function getEslintConfigPath(framework: Framework, scriptDir: string): string {
@@ -239,10 +209,16 @@ async function main(): Promise<void> {
   }
 
   const configFile = getEslintConfigPath(framework, scriptDir);
-  const eslint = new ESLint({
-    overrideConfigFile: configFile,
-    overrideConfig: [],
-  });
+  let eslint: import("eslint").ESLint;
+  try {
+    eslint = new ESLint({
+      overrideConfigFile: configFile,
+      overrideConfig: [],
+    });
+  } catch (err) {
+    process.stderr.write(`a11y-sdk pre-commit: ESLint error — ${String(err)}\n`);
+    process.exit(2);
+  }
 
   let results: import("eslint").ESLint.LintResult[];
   try {
