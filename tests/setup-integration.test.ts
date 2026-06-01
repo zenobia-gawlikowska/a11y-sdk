@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, beforeAll } from "vitest";
 import { writeFileSync, rmSync, cpSync, readFileSync, existsSync } from "node:fs";
 import { spawnSync, execSync } from "node:child_process";
 import { join, resolve } from "node:path";
@@ -16,6 +16,17 @@ const TOOLKIT_DIR = join(REPO_ROOT, "toolkit");
 // ---------------------------------------------------------------------------
 
 const tempDirs: string[] = [];
+
+const REQUIRED_WRAPPERS = ["wrappers/CLAUDE.md", "wrappers/.cursorrules", "wrappers/AGENTS.md"];
+
+beforeAll(() => {
+  for (const wrapper of REQUIRED_WRAPPERS) {
+    const full = join(TOOLKIT_DIR, wrapper);
+    if (!existsSync(full)) {
+      throw new Error(`Fixture file missing: ${full}. The test suite cannot run without it.`);
+    }
+  }
+});
 
 function makeSetupProject(opts: { claudeMd?: string | false } = {}): string {
   const root = initGitProject("a11y-setup-");
@@ -70,10 +81,11 @@ describe("setup.sh integration", () => {
 
   it("CLAUDE.md absent → creates from wrapper", () => {
     const root = makeSetupProject();
-    runSetup(root);
+    const { stdout } = runSetup(root);
     const claudeMd = join(root, "CLAUDE.md");
     expect(existsSync(claudeMd)).toBe(true);
     expect(readFileSync(claudeMd, "utf8")).toContain("@.a11y/context.md");
+    expect(stdout).not.toContain("already contains a11y context reference");
   });
 
   it("CLAUDE.md exists without marker → appends marker", () => {
@@ -93,6 +105,7 @@ describe("setup.sh integration", () => {
   it("second full run is idempotent: exit 0, one CLAUDE.md marker, .cursorrules unchanged", () => {
     const root = makeSetupProject();
     runSetup(root);
+    expect(existsSync(join(root, ".cursorrules"))).toBe(true);
     const cursorrulesBefore = readFileSync(join(root, ".cursorrules"), "utf8");
     const { status } = runSetup(root);
     expect(status).toBe(0);
