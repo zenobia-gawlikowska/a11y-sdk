@@ -1,6 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
 import {
-  mkdtempSync,
   mkdirSync,
   writeFileSync,
   rmSync,
@@ -9,7 +8,7 @@ import {
 } from "node:fs";
 import { spawnSync, execSync } from "node:child_process";
 import { join, resolve, dirname } from "node:path";
-import { tmpdir } from "node:os";
+import { initGitProject } from "./helpers/make-project";
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -37,14 +36,8 @@ function makeProject(opts: {
   /** npm package name that identifies the framework, e.g. "react" or "@angular/core" */
   frameworkPkg?: string;
 } = {}): string {
-  const root = mkdtempSync(join(tmpdir(), "a11y-int-"));
+  const root = initGitProject("a11y-int-");
   tempDirs.push(root);
-
-  // Git init with local identity (CI may lack global git config)
-  execSync("git init", { cwd: root, stdio: "pipe" });
-  execSync('git config user.email "test@a11y-sdk.local"', { cwd: root, stdio: "pipe" });
-  execSync('git config user.name "a11y-sdk test"', { cwd: root, stdio: "pipe" });
-  execSync("git commit --allow-empty -m init", { cwd: root, stdio: "pipe" });
 
   // Write package.json so detectFramework returns the right value (avoids TUI prompt)
   const pkg = opts.frameworkPkg ?? "react";
