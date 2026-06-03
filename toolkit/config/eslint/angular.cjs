@@ -6,12 +6,13 @@
 const angular = require('@angular-eslint/eslint-plugin-template');
 const angularTemplateParser = require('@angular-eslint/template-parser');
 
+// angular.configs.accessibility uses eslintrc format (plugins as string array,
+// top-level parser). Rebuild as a valid flat config object manually.
 module.exports = [
   {
-    ...angular.configs.accessibility,
     files: ['**/*.html'],
-    languageOptions: {
-      parser: angularTemplateParser,
-    },
+    plugins: { '@angular-eslint/template': angular },
+    languageOptions: { parser: angularTemplateParser },
+    rules: angular.configs.accessibility.rules,
   },
 ];
