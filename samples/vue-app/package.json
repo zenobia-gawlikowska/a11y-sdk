@@ -1,0 +1,21 @@
+{
+  "name": "a11y-sample-vue",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --config .a11y/config/eslint/vue.cjs"
+  },
+  "dependencies": {
+    "vue": "^3.5.17"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.3.1",
+    "eslint": "^9.0.0",
+    "eslint-plugin-vuejs-accessibility": "^2.3.0",
+    "vite": "^5.4.19"
+  }
+}
