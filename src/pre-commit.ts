@@ -4,7 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { detectFramework, type Framework } from "./detect-framework.js";
 import { loadConfig } from "./config-loader.js";
-import { CATEGORY_RULE_PREFIXES, isRuleEnabled } from "./rule-filter.js";
+import { isRuleEnabled } from "./rule-filter.js";
 
 // ---------------------------------------------------------------------------
 // WCAG criterion map: ESLint rule ID → WCAG success criterion
@@ -33,9 +33,11 @@ const WCAG_MAP: Record<string, string> = {
   "jsx-a11y/no-aria-hidden-on-focusable": "1.3.1 Info and Relationships",
   "jsx-a11y/no-autofocus": "3.2.1 On Focus",
   "jsx-a11y/no-distracting-elements": "2.2.2 Pause, Stop, Hide",
-  "jsx-a11y/no-interactive-element-to-noninteractive-role": "4.1.2 Name, Role, Value",
+  "jsx-a11y/no-interactive-element-to-noninteractive-role":
+    "4.1.2 Name, Role, Value",
   "jsx-a11y/no-noninteractive-element-interactions": "4.1.2 Name, Role, Value",
-  "jsx-a11y/no-noninteractive-element-to-interactive-role": "4.1.2 Name, Role, Value",
+  "jsx-a11y/no-noninteractive-element-to-interactive-role":
+    "4.1.2 Name, Role, Value",
   "jsx-a11y/no-noninteractive-tabindex": "2.1.1 Keyboard",
   "jsx-a11y/no-redundant-roles": "4.1.2 Name, Role, Value",
   "jsx-a11y/no-static-element-interactions": "2.1.1 Keyboard",
@@ -84,11 +86,16 @@ function getStagedFiles(): string[] {
 
 function getExtensionsForFramework(fw: Framework): string[] {
   switch (fw) {
-    case "react": return [".jsx", ".tsx"];
-    case "vue": return [".vue"];
-    case "svelte": return [".svelte"];
-    case "angular": return [".html", ".ts"];
-    default: return [];
+    case "react":
+      return [".jsx", ".tsx"];
+    case "vue":
+      return [".vue"];
+    case "svelte":
+      return [".svelte"];
+    case "angular":
+      return [".html", ".ts"];
+    default:
+      return [];
   }
 }
 
@@ -117,9 +124,14 @@ async function promptFramework(): Promise<Framework> {
   const options: Framework[] = ["react", "vue", "svelte", "angular"];
 
   return new Promise((resolvePromise) => {
-    const rl = createInterface({ input: process.stdin, output: process.stderr });
+    const rl = createInterface({
+      input: process.stdin,
+      output: process.stderr,
+    });
 
-    process.stderr.write("\na11y-sdk: framework not detected in package.json.\n\n");
+    process.stderr.write(
+      "\na11y-sdk: framework not detected in package.json.\n\n",
+    );
     options.forEach((opt, i) => {
       process.stderr.write(`  ${i + 1}. ${opt}\n`);
     });
@@ -134,7 +146,10 @@ async function promptFramework(): Promise<Framework> {
   });
 }
 
-function persistFrameworkChoice(projectRoot: string, framework: Framework): void {
+function persistFrameworkChoice(
+  projectRoot: string,
+  framework: Framework,
+): void {
   const configPath = join(projectRoot, ".a11y", "config", "a11y.config.json");
   if (!existsSync(configPath)) return;
 
@@ -162,7 +177,9 @@ async function main(): Promise<void> {
   try {
     config = loadConfig(projectRoot);
   } catch (err) {
-    process.stderr.write(`a11y-sdk pre-commit: config error — ${String(err)}\n`);
+    process.stderr.write(
+      `a11y-sdk pre-commit: config error — ${String(err)}\n`,
+    );
     process.exit(2);
   }
 
@@ -200,7 +217,8 @@ async function main(): Promise<void> {
   try {
     // eslint must be in the developer's project node_modules
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    ESLint = (require("eslint") as { ESLint: typeof import("eslint").ESLint }).ESLint;
+    ESLint = (require("eslint") as { ESLint: typeof import("eslint").ESLint })
+      .ESLint;
   } catch {
     process.stderr.write(
       "a11y-sdk pre-commit: ESLint not found. Run `bash .a11y/scripts/setup.sh` first.\n",
@@ -216,7 +234,9 @@ async function main(): Promise<void> {
       overrideConfig: [],
     });
   } catch (err) {
-    process.stderr.write(`a11y-sdk pre-commit: ESLint error — ${String(err)}\n`);
+    process.stderr.write(
+      `a11y-sdk pre-commit: ESLint error — ${String(err)}\n`,
+    );
     process.exit(2);
   }
 
@@ -224,12 +244,20 @@ async function main(): Promise<void> {
   try {
     results = await eslint.lintFiles(relevantFiles);
   } catch (err) {
-    process.stderr.write(`a11y-sdk pre-commit: ESLint error — ${String(err)}\n`);
+    process.stderr.write(
+      `a11y-sdk pre-commit: ESLint error — ${String(err)}\n`,
+    );
     process.exit(2);
   }
 
   // 5. Collect and filter violations
-  const violations: Array<{ file: string; line: number; ruleId: string; message: string; wcag: string }> = [];
+  const violations: Array<{
+    file: string;
+    line: number;
+    ruleId: string;
+    message: string;
+    wcag: string;
+  }> = [];
 
   for (const result of results) {
     for (const msg of result.messages) {
@@ -255,20 +283,22 @@ async function main(): Promise<void> {
   for (const v of violations) {
     process.stderr.write(
       `  ${v.file}:${v.line}\n` +
-      `    Rule:  ${v.ruleId}\n` +
-      `    WCAG:  ${v.wcag}\n` +
-      `    Issue: ${v.message}\n\n`,
+        `    Rule:  ${v.ruleId}\n` +
+        `    WCAG:  ${v.wcag}\n` +
+        `    Issue: ${v.message}\n\n`,
     );
   }
   process.stderr.write(
     `${violations.length} violation(s). Commit blocked.\n` +
-    `Fix the issues above or use --no-verify to bypass (not recommended).\n\n`,
+      `Fix the issues above or use --no-verify to bypass (not recommended).\n\n`,
   );
 
   process.exit(1);
 }
 
 main().catch((err: unknown) => {
-  process.stderr.write(`a11y-sdk pre-commit: unexpected error — ${String(err)}\n`);
+  process.stderr.write(
+    `a11y-sdk pre-commit: unexpected error — ${String(err)}\n`,
+  );
   process.exit(2);
 });
