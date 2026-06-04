@@ -66,6 +66,20 @@ const WCAG_MAP: Record<string, string> = {
   "vuejs-accessibility/no-redundant-roles": "4.1.2 Name, Role, Value",
   "vuejs-accessibility/role-has-required-aria-props": "4.1.2 Name, Role, Value",
   "vuejs-accessibility/tabindex-no-positive": "2.4.3 Focus Order",
+  // @angular-eslint/template rules (accessibility config)
+  "@angular-eslint/template/alt-text": "1.1.1 Non-text Content",
+  "@angular-eslint/template/click-events-have-key-events": "2.1.1 Keyboard",
+  "@angular-eslint/template/elements-content": "2.4.4 Link Purpose",
+  "@angular-eslint/template/interactive-supports-focus": "2.1.1 Keyboard",
+  "@angular-eslint/template/label-has-associated-control":
+    "1.3.1 Info and Relationships",
+  "@angular-eslint/template/mouse-events-have-key-events": "2.1.1 Keyboard",
+  "@angular-eslint/template/no-autofocus": "3.2.1 On Focus",
+  "@angular-eslint/template/no-distracting-elements": "2.2.2 Pause, Stop, Hide",
+  "@angular-eslint/template/no-positive-tabindex": "2.4.3 Focus Order",
+  "@angular-eslint/template/role-has-required-aria": "4.1.2 Name, Role, Value",
+  "@angular-eslint/template/table-scope": "1.3.1 Info and Relationships",
+  "@angular-eslint/template/valid-aria": "4.1.2 Name, Role, Value",
 };
 
 // ---------------------------------------------------------------------------

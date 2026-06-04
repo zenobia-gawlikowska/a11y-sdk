@@ -198,7 +198,20 @@ var WCAG_MAP = {
   "vuejs-accessibility/no-onchange": "3.2.2 On Input",
   "vuejs-accessibility/no-redundant-roles": "4.1.2 Name, Role, Value",
   "vuejs-accessibility/role-has-required-aria-props": "4.1.2 Name, Role, Value",
-  "vuejs-accessibility/tabindex-no-positive": "2.4.3 Focus Order"
+  "vuejs-accessibility/tabindex-no-positive": "2.4.3 Focus Order",
+  // @angular-eslint/template rules (accessibility config)
+  "@angular-eslint/template/alt-text": "1.1.1 Non-text Content",
+  "@angular-eslint/template/click-events-have-key-events": "2.1.1 Keyboard",
+  "@angular-eslint/template/elements-content": "2.4.4 Link Purpose",
+  "@angular-eslint/template/interactive-supports-focus": "2.1.1 Keyboard",
+  "@angular-eslint/template/label-has-associated-control": "1.3.1 Info and Relationships",
+  "@angular-eslint/template/mouse-events-have-key-events": "2.1.1 Keyboard",
+  "@angular-eslint/template/no-autofocus": "3.2.1 On Focus",
+  "@angular-eslint/template/no-distracting-elements": "2.2.2 Pause, Stop, Hide",
+  "@angular-eslint/template/no-positive-tabindex": "2.4.3 Focus Order",
+  "@angular-eslint/template/role-has-required-aria": "4.1.2 Name, Role, Value",
+  "@angular-eslint/template/table-scope": "1.3.1 Info and Relationships",
+  "@angular-eslint/template/valid-aria": "4.1.2 Name, Role, Value"
 };
 function getStagedFiles() {
   try {
@@ -242,8 +255,13 @@ function getEslintConfigPath(framework, scriptDir) {
 async function promptFramework() {
   const options = ["react", "vue", "svelte", "angular"];
   return new Promise((resolvePromise) => {
-    const rl = (0, import_node_readline.createInterface)({ input: process.stdin, output: process.stderr });
-    process.stderr.write("\na11y-sdk: framework not detected in package.json.\n\n");
+    const rl = (0, import_node_readline.createInterface)({
+      input: process.stdin,
+      output: process.stderr
+    });
+    process.stderr.write(
+      "\na11y-sdk: framework not detected in package.json.\n\n"
+    );
     options.forEach((opt, i) => {
       process.stderr.write(`  ${i + 1}. ${opt}
 `);
@@ -275,8 +293,10 @@ async function main() {
   try {
     config = loadConfig(projectRoot);
   } catch (err) {
-    process.stderr.write(`a11y-sdk pre-commit: config error \u2014 ${String(err)}
-`);
+    process.stderr.write(
+      `a11y-sdk pre-commit: config error \u2014 ${String(err)}
+`
+    );
     process.exit(2);
   }
   let framework = detectFramework(projectRoot);
@@ -315,16 +335,20 @@ async function main() {
       overrideConfig: []
     });
   } catch (err) {
-    process.stderr.write(`a11y-sdk pre-commit: ESLint error \u2014 ${String(err)}
-`);
+    process.stderr.write(
+      `a11y-sdk pre-commit: ESLint error \u2014 ${String(err)}
+`
+    );
     process.exit(2);
   }
   let results;
   try {
     results = await eslint.lintFiles(relevantFiles);
   } catch (err) {
-    process.stderr.write(`a11y-sdk pre-commit: ESLint error \u2014 ${String(err)}
-`);
+    process.stderr.write(
+      `a11y-sdk pre-commit: ESLint error \u2014 ${String(err)}
+`
+    );
     process.exit(2);
   }
   const violations = [];
@@ -364,7 +388,9 @@ Fix the issues above or use --no-verify to bypass (not recommended).
   process.exit(1);
 }
 main().catch((err) => {
-  process.stderr.write(`a11y-sdk pre-commit: unexpected error \u2014 ${String(err)}
-`);
+  process.stderr.write(
+    `a11y-sdk pre-commit: unexpected error \u2014 ${String(err)}
+`
+  );
   process.exit(2);
 });

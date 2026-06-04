@@ -1,2 +1,2 @@
-#!/usr/bin/env node
-require('../scripts/pre-commit.cjs');
+#!/usr/bin/env bash
+exec node "$(dirname "$0")/../scripts/pre-commit.cjs"

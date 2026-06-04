@@ -164,6 +164,24 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Step 9b: Create .github/copilot-instructions.md (append if exists)
+# ---------------------------------------------------------------------------
+COPILOT_MD="${PROJECT_ROOT}/.github/copilot-instructions.md"
+mkdir -p "${PROJECT_ROOT}/.github"
+if [ -f "${COPILOT_MD}" ]; then
+  if grep -qF ".a11y/context.md" "${COPILOT_MD}"; then
+    info ".github/copilot-instructions.md already references a11y context — skipping"
+  else
+    printf "\n\n" >> "${COPILOT_MD}"
+    cat "${A11Y_DIR}/wrappers/copilot-instructions.md" >> "${COPILOT_MD}"
+    info ".github/copilot-instructions.md: appended a11y context reference"
+  fi
+else
+  cp "${A11Y_DIR}/wrappers/copilot-instructions.md" "${COPILOT_MD}"
+  info ".github/copilot-instructions.md: created from .a11y/wrappers/copilot-instructions.md"
+fi
+
+# ---------------------------------------------------------------------------
 # Step 10: Summary
 # ---------------------------------------------------------------------------
 echo ""
