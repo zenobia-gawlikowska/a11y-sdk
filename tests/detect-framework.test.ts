@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { describe, it, expect, afterEach } from "vitest";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { detectFramework } from "../src/detect-framework.js";
@@ -42,7 +42,9 @@ describe("detectFramework", () => {
   });
 
   it("returns 'angular' when @angular/core is in dependencies", () => {
-    expect(detectFramework(root({ "@angular/core": "^17.0.0" }))).toBe("angular");
+    expect(detectFramework(root({ "@angular/core": "^17.0.0" }))).toBe(
+      "angular",
+    );
   });
 
   it("returns 'angular' when both react and @angular/core are present (angular wins)", () => {
@@ -56,7 +58,11 @@ describe("detectFramework", () => {
     roots.push(r);
     writeFileSync(
       join(r, "package.json"),
-      JSON.stringify({ name: "test", dependencies: {}, devDependencies: { react: "^18.0.0" } }),
+      JSON.stringify({
+        name: "test",
+        dependencies: {},
+        devDependencies: { react: "^18.0.0" },
+      }),
       "utf8",
     );
     expect(detectFramework(r)).toBe("react");

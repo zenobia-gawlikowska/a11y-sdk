@@ -6,9 +6,11 @@ set -euo pipefail
 # and patches/creates AI context wrapper files at the project root.
 # Run once after copying .a11y/ into your project root.
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-A11Y_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-PROJECT_ROOT="$(cd "${A11Y_DIR}/.." && pwd)"
+# pwd -L keeps the logical (symlink-preserving) path so that PROJECT_ROOT is
+# the project that contains .a11y/, not the physical toolkit source directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -L)"
+A11Y_DIR="$(cd "${SCRIPT_DIR}/.." && pwd -L)"
+PROJECT_ROOT="$(cd "${A11Y_DIR}/.." && pwd -L)"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -161,6 +163,24 @@ if [ -f "${AGENTS_MD}" ]; then
 else
   cp "${A11Y_DIR}/wrappers/AGENTS.md" "${AGENTS_MD}"
   info "AGENTS.md: created from .a11y/wrappers/AGENTS.md"
+fi
+
+# ---------------------------------------------------------------------------
+# Step 9b: Create .github/copilot-instructions.md (append if exists)
+# ---------------------------------------------------------------------------
+COPILOT_MD="${PROJECT_ROOT}/.github/copilot-instructions.md"
+mkdir -p "${PROJECT_ROOT}/.github"
+if [ -f "${COPILOT_MD}" ]; then
+  if grep -qF ".a11y/context.md" "${COPILOT_MD}"; then
+    info ".github/copilot-instructions.md already references a11y context — skipping"
+  else
+    printf "\n\n" >> "${COPILOT_MD}"
+    cat "${A11Y_DIR}/wrappers/copilot-instructions.md" >> "${COPILOT_MD}"
+    info ".github/copilot-instructions.md: appended a11y context reference"
+  fi
+else
+  cp "${A11Y_DIR}/wrappers/copilot-instructions.md" "${COPILOT_MD}"
+  info ".github/copilot-instructions.md: created from .a11y/wrappers/copilot-instructions.md"
 fi
 
 # ---------------------------------------------------------------------------

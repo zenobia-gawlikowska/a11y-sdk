@@ -13,6 +13,22 @@ samples/
 
 Each app has `.a11y → ../../toolkit` as a symlink, so the toolkit is available without any install step.
 
+> **Each sample must be its own git repo** for the pre-commit hook to work —
+> `git config core.hooksPath` applies to the nearest `.git` directory, so without
+> one the hook would attach to the parent `a11y-sdk` repo instead.
+
+## First-time setup
+
+Run once after cloning:
+
+```bash
+bash samples/init-samples.sh          # init all three
+bash samples/init-samples.sh react    # or just one framework
+```
+
+This does three things per sample: `git init`, an initial commit of the scaffold,
+and `bash .a11y/scripts/setup.sh` to wire the pre-commit hook.
+
 ## Intentional violations (per app)
 
 | # | Violation | WCAG | Layer caught by |
@@ -30,18 +46,20 @@ Each app has `.a11y → ../../toolkit` as a symlink, so the toolkit is available
 
 ### Layer 2 — ESLint pre-commit hook
 
+After `init-samples.sh`, the hook is already wired. Touch a file and commit:
+
 ```bash
 cd react-app
-npm install
-npm run lint          # runs eslint via .a11y/config/eslint/react.mjs
+touch src/App.jsx          # or make any edit
+git add src/App.jsx
+git commit -m "test"       # hook fires and blocks on violations
 ```
 
-Or run via the toolkit setup script to wire the git hook:
+To run ESLint directly without committing (uses the parent a11y-sdk's ESLint):
 
 ```bash
-bash .a11y/scripts/setup.sh
-git add src/App.jsx
-git commit -m "test"  # hook fires and blocks on violations
+cd react-app
+../../node_modules/.bin/eslint src --config .a11y/config/eslint/react.cjs
 ```
 
 ### Layer 3 — axe audit
