@@ -3,8 +3,9 @@
 # the a11y toolkit's pre-commit hook. Run once after cloning a11y-sdk.
 #
 # Usage:
-#   bash samples/init-samples.sh          # init all three
-#   bash samples/init-samples.sh react    # init only the react-app
+#   bash samples/init-samples.sh                    # init all four
+#   bash samples/init-samples.sh react              # init only the react-app
+#   bash samples/init-samples.sh react vue svelte   # init specific ones
 #
 # Note: setup.sh is intentionally NOT called here. When .a11y is a symlink,
 # setup.sh resolves PROJECT_ROOT via the physical path (a11y-sdk/) rather than
@@ -16,7 +17,7 @@
 set -uo pipefail
 
 SAMPLES_DIR="$(cd "$(dirname "$0")" && pwd -L)"
-APPS=("react-app" "vue-app" "angular-app")
+APPS=("react-app" "vue-app" "angular-app" "svelte-app")
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

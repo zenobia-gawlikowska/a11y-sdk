@@ -1,6 +1,6 @@
 # Sample apps — a11y SDK validation
 
-Three minimal framework apps, each pre-loaded with intentional a11y violations, used to validate the SDK's three enforcement layers.
+Four minimal framework apps, each pre-loaded with intentional a11y violations, used to validate the SDK's three enforcement layers.
 
 ## Structure
 
@@ -9,6 +9,7 @@ samples/
   react-app/      Vite + React 18 (JSX)
   vue-app/        Vite + Vue 3 (SFC)
   angular-app/    Angular 18 (component template)
+  svelte-app/     Vite + Svelte 5 (SFC)
 ```
 
 Each app has `.a11y → ../../toolkit` as a symlink, so the toolkit is available without any install step.
@@ -22,12 +23,13 @@ Each app has `.a11y → ../../toolkit` as a symlink, so the toolkit is available
 Run once after cloning:
 
 ```bash
-bash samples/init-samples.sh          # init all three
-bash samples/init-samples.sh react    # or just one framework
+bash samples/init-samples.sh                    # init all four
+bash samples/init-samples.sh react              # or just one framework
+bash samples/init-samples.sh react vue svelte   # or a selection
 ```
 
 This does three things per sample: `git init`, an initial commit of the scaffold,
-and `bash .a11y/scripts/setup.sh` to wire the pre-commit hook.
+and wires the pre-commit hook via `git config core.hooksPath .a11y/hooks`.
 
 ## Intentional violations (per app)
 
@@ -41,6 +43,19 @@ and `bash .a11y/scripts/setup.sh` to wire the pre-commit hook.
 | 6 | Link with generic text ("click here") | 2.4.6 | Layer 2 |
 | 7 | Heading hierarchy skips levels (h1 → h3/h4) | 1.3.1 | Layer 3 |
 | 8 | `<table>` without `<caption>` / `scope` on `<th>` | 1.3.1 | Layer 3 (Angular only) |
+
+**Note on Svelte:** Svelte's a11y rules are built into the compiler itself, not a
+separate ESLint plugin. They are surfaced via the `svelte/valid-compile` rule which
+runs the compiler and promotes its diagnostics to ESLint errors.
+
+## ESLint results per framework
+
+| Framework | Violations caught by Layer 2 |
+|-----------|------------------------------|
+| React | `alt-text`, `click-events-have-key-events`, `no-static-element-interactions` |
+| Vue | `alt-text`, `form-control-has-label`, `click-events-have-key-events`, `no-static-element-interactions` |
+| Angular | `alt-text`, `click-events-have-key-events`, `interactive-supports-focus` |
+| Svelte | `a11y_missing_attribute`, `a11y_click_events_have_key_events`, `a11y_no_static_element_interactions` |
 
 ## Quickstart per layer
 
@@ -60,6 +75,9 @@ To run ESLint directly without committing (uses the parent a11y-sdk's ESLint):
 ```bash
 cd react-app
 ../../node_modules/.bin/eslint src --config .a11y/config/eslint/react.cjs
+
+cd svelte-app
+../../node_modules/.bin/eslint src --config .a11y/config/eslint/svelte.cjs
 ```
 
 ### Layer 3 — axe audit
