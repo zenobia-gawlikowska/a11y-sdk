@@ -100,7 +100,7 @@ If Playwright isn't installed, the script prints the exact commands and exits wi
 |---|---|---|
 | React | `eslint-plugin-jsx-a11y` | ≥ 6.9.0 |
 | Vue | `eslint-plugin-vuejs-accessibility` + `eslint-plugin-vue` | ≥ 2.5.0 |
-| Svelte | `eslint-plugin-svelte` | ≥ 3.0.0 |
+| Svelte | `eslint-plugin-svelte` + `svelte` | ≥ 3.0.0 |
 | Angular | `@angular-eslint/eslint-plugin-template` | ≥ 19.0.0 |
 
 **ESLint version:** ESLint 9 is required. ESLint 10 breaks `@angular-eslint/template-parser`'s scope manager and is not yet supported.
@@ -124,13 +124,14 @@ samples/                    # Minimal sample apps for SDK validation
   react-app/                # Vite + React 18 (JSX)
   vue-app/                  # Vite + Vue 3 (SFC)
   angular-app/              # Angular 18 component template
+  svelte-app/               # Vite + Svelte 5 (SFC)
   init-samples.sh           # One-time setup: git init + hook wiring per app
 tests/                      # Vitest unit tests
 ```
 
 ## Validating the SDK locally
 
-The `samples/` directory contains three minimal apps pre-loaded with intentional
+The `samples/` directory contains four minimal apps pre-loaded with intentional
 WCAG 2.1 AA violations. Each has `.a11y` symlinked to `../../toolkit` so the
 toolkit is available without a separate install.
 
