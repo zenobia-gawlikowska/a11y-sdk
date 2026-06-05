@@ -6,9 +6,11 @@ set -euo pipefail
 # and patches/creates AI context wrapper files at the project root.
 # Run once after copying .a11y/ into your project root.
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-A11Y_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-PROJECT_ROOT="$(cd "${A11Y_DIR}/.." && pwd)"
+# pwd -L keeps the logical (symlink-preserving) path so that PROJECT_ROOT is
+# the project that contains .a11y/, not the physical toolkit source directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -L)"
+A11Y_DIR="$(cd "${SCRIPT_DIR}/.." && pwd -L)"
+PROJECT_ROOT="$(cd "${A11Y_DIR}/.." && pwd -L)"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
