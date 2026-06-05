@@ -99,9 +99,11 @@ If Playwright isn't installed, the script prints the exact commands and exits wi
 | Framework | ESLint plugin | Min version |
 |---|---|---|
 | React | `eslint-plugin-jsx-a11y` | ≥ 6.9.0 |
-| Vue | `eslint-plugin-vuejs-accessibility` | ≥ 2.3.0 |
+| Vue | `eslint-plugin-vuejs-accessibility` + `eslint-plugin-vue` | ≥ 2.5.0 |
 | Svelte | `eslint-plugin-svelte` | ≥ 3.0.0 |
-| Angular | `@angular-eslint/eslint-plugin-template` | ≥ 18.0.0 |
+| Angular | `@angular-eslint/eslint-plugin-template` | ≥ 19.0.0 |
+
+**ESLint version:** ESLint 9 is required. ESLint 10 breaks `@angular-eslint/template-parser`'s scope manager and is not yet supported.
 
 ## Repository structure
 
@@ -118,8 +120,43 @@ toolkit/                    # Distributable — copy this as .a11y/
   hooks/pre-commit          # Git hook shim
   config/a11y.config.json   # Default config
   wrappers/                 # AI tool wrapper files
+samples/                    # Minimal sample apps for SDK validation
+  react-app/                # Vite + React 18 (JSX)
+  vue-app/                  # Vite + Vue 3 (SFC)
+  angular-app/              # Angular 18 component template
+  init-samples.sh           # One-time setup: git init + hook wiring per app
 tests/                      # Vitest unit tests
 ```
+
+## Validating the SDK locally
+
+The `samples/` directory contains three minimal apps pre-loaded with intentional
+WCAG 2.1 AA violations. Each has `.a11y` symlinked to `../../toolkit` so the
+toolkit is available without a separate install.
+
+Each sample must be its own git repo for `core.hooksPath` to apply at the right
+scope. Run once after cloning:
+
+```bash
+bash samples/init-samples.sh
+```
+
+Then trigger the pre-commit hook:
+
+```bash
+cd samples/react-app
+git add src/App.jsx
+git commit -m "test"   # hook fires and lists violations with WCAG citations
+```
+
+Or run ESLint directly (no commit needed):
+
+```bash
+cd samples/react-app
+../../node_modules/.bin/eslint src --config .a11y/config/eslint/react.cjs
+```
+
+See [`samples/README.md`](samples/README.md) for the full violation inventory and Layer 3 audit instructions.
 
 ## Development
 
