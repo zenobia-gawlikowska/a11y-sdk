@@ -141,3 +141,11 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Sample apps — each is initialised as its own git repo by init-samples.sh.
+# Ignore their .git folders and generated artifacts so they don't pollute the
+# parent repo's status output.
+samples/*/node_modules/
+samples/*/.git/
+samples/*/dist/
+samples/*/.a11y/audit-results.json
