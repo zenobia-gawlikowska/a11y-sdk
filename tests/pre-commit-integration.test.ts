@@ -163,12 +163,16 @@ export function Card() {
 // ---------------------------------------------------------------------------
 
 describe("R2 — broken config surfaces a clear error", () => {
-  it("missing ESLint plugin exits 2 with a11y-sdk prefix in stderr", () => {
-    // Use svelte framework — eslint-plugin-svelte is NOT a devDep of a11y-sdk,
-    // so require('eslint-plugin-svelte') inside svelte.cjs will throw MODULE_NOT_FOUND.
-    // The lintFiles() catch block must then exit 2 with the a11y-sdk prefix.
-    const root = makeProject({ frameworkPkg: "svelte" });
-    stageFile(root, "src/App.svelte", `<img src="logo.png">`);
+  it("malformed a11y.config.json exits 2 with a11y-sdk prefix in stderr", () => {
+    // Overwrite the copied config with invalid JSON so loadConfig() throws,
+    // triggering the exit-2 path regardless of which plugins are installed.
+    const root = makeProject({ frameworkPkg: "react" });
+    writeFileSync(
+      join(root, ".a11y", "config", "a11y.config.json"),
+      "{ this is not valid json }",
+      "utf8",
+    );
+    stageFile(root, "src/App.jsx", `<img src="logo.png">`);
     const result = runHook(root);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain("a11y-sdk pre-commit:");
