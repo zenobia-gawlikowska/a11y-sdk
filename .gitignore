@@ -155,3 +155,4 @@ samples/*/AGENTS.md
 samples/*/.cursorrules
 samples/*/.github/
 samples/*/.history/
+toolkit/audit-results.json
