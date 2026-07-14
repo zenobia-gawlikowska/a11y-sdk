@@ -15,7 +15,7 @@ Three layers, each independent:
 | Layer | When it runs | What it does |
 |---|---|---|
 | **1 — AI context** | Every prompt | AI reads WCAG rules + component patterns before generating code |
-| **2 — Pre-commit hook** | Every commit | ESLint a11y plugin catches violations in staged files |
+| **2 — Pre-commit hook** | Every commit | ESLint a11y plugin + built-in contract checks catch violations in staged files |
 | **3 — Audit** | On request | axe-core scans a running page; behavioral recipes drive keyboard/focus/reflow checks axe can't |
 
 ## Installation
@@ -49,12 +49,25 @@ No extra prompting needed — the AI applies a11y patterns by default.
 The hook runs automatically on every `git commit`. It:
 
 1. Gets staged files
-2. Filters to framework-relevant extensions (`.jsx`/`.tsx` for React, `.vue`, `.svelte`, `.html`)
-3. Runs ESLint with the framework-specific a11y flat config
+2. Runs the built-in source contract checks on markup (`.jsx`/`.tsx`, `.vue`, `.svelte`, `.html`) and stylesheet (`.css`/`.scss`/`.sass`/`.less`) files
+3. Filters to framework-relevant extensions and runs ESLint with the framework-specific a11y flat config
 4. Outputs violations with filename, line, rule ID, and WCAG criterion
 5. Exits non-zero on violations (blocks the commit)
 
 If your framework isn't detected automatically, the hook prompts once and saves your choice to `.a11y/config/a11y.config.json`.
+
+### Source contract checks
+
+Four static checks run alongside ESLint. Each is the commit-time twin of a Layer 3 behavioral recipe — it catches the same contract earlier, on staged source, without needing a running page:
+
+| Rule | Contract | WCAG | Runtime twin |
+|---|---|---|---|
+| `a11y-sdk/dialog-contract` | `role="dialog"` must declare `aria-modal` and an accessible name (`aria-labelledby`/`aria-label`) | 4.1.2 | `behave:dialog` |
+| `a11y-sdk/expanded-controls` | `aria-expanded` must be paired with `aria-controls` | 4.1.2 | `behave:disclosure` |
+| `a11y-sdk/no-px-font-size` | no `px` font sizes in component styles or stylesheets (`font-size: 0` exempt) | 1.4.4 | `behave:zoom-200` |
+| `a11y-sdk/autocomplete-required` | inputs collecting personal data (by `type` or static `name`/`id`) must declare `autocomplete`; the message suggests the concrete token | 1.3.5 | `behave:autocomplete` |
+
+The checks are text-based and deliberately under-flagging: dynamically bound attribute values are skipped, and plain `.ts` files are excluded so DOM code like `setAttribute("aria-expanded", …)` can't false-positive. Stylesheets are checked even though ESLint never sees them — a commit touching only CSS still gets the font-size check, and ESLint (with its install requirement) only kicks in when framework files are staged. The dialog and `aria-expanded` checks honor the `aria-roles` config category, the autocomplete check honors `form-labeling`.
 
 **Configuration** — `.a11y/config/a11y.config.json`:
 ```json
@@ -118,6 +131,7 @@ src/                        # TypeScript source
   audit.ts                  # Layer 3 — axe-core audit runner
   behave.ts                 # Layer 3 — behavioral audit recipes
   pre-commit.ts             # Layer 2 — pre-commit hook runner
+  contract-checks.ts        # Layer 2 — static source contract checks
   detect-framework.ts       # Framework detection
   config-loader.ts          # Config loader
 toolkit/                    # Distributable — copy this as .a11y/
