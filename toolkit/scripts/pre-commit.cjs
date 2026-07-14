@@ -31,7 +31,7 @@ function detectFramework(projectRoot) {
   if ("react" in deps) return "react";
   return "unknown";
 }
-if (require.main === module) {
+if (require.main === module && (0, import_node_path.basename)(process.argv[1] ?? "").startsWith("detect-framework")) {
   const projectRoot = process.argv[2] ?? process.cwd();
   process.stdout.write(detectFramework(projectRoot) + "\n");
 }
@@ -434,6 +434,14 @@ function getExtensionsForFramework(fw) {
       return [];
   }
 }
+var ALL_FRAMEWORK_EXTENSIONS = [
+  ".jsx",
+  ".tsx",
+  ".vue",
+  ".svelte",
+  ".html",
+  ".ts"
+];
 function filterStagedFiles(files, framework) {
   const exts = getExtensionsForFramework(framework);
   return files.filter((f) => exts.some((ext) => f.endsWith(ext)));
@@ -463,11 +471,16 @@ async function promptFramework() {
 `);
     });
     process.stderr.write("\nEnter number (1-4): ");
+    let answered = false;
     rl.once("line", (line) => {
+      answered = true;
       rl.close();
       const index = parseInt(line.trim(), 10) - 1;
       const chosen = options[index] ?? "react";
       resolvePromise(chosen);
+    });
+    rl.once("close", () => {
+      if (!answered) resolvePromise("react");
     });
   });
 }
@@ -495,24 +508,12 @@ async function main() {
     );
     process.exit(2);
   }
-  let framework = detectFramework(projectRoot);
-  try {
-    const configPath = (0, import_node_path4.join)(projectRoot, ".a11y", "config", "a11y.config.json");
-    const raw = (0, import_node_fs3.readFileSync)(configPath, "utf8");
-    const parsed = JSON.parse(raw);
-    if (typeof parsed["framework"] === "string") {
-      framework = parsed["framework"];
-    }
-  } catch {
-  }
-  if (framework === "unknown") {
-    framework = await promptFramework();
-    persistFrameworkChoice(projectRoot, framework);
-  }
   const allStaged = getStagedFiles();
-  const relevantFiles = filterStagedFiles(allStaged, framework);
   const contractFiles = allStaged.filter(isContractCheckable);
-  if (relevantFiles.length === 0 && contractFiles.length === 0) {
+  const maybeFrameworkFiles = allStaged.filter(
+    (f) => ALL_FRAMEWORK_EXTENSIONS.some((ext) => f.endsWith(ext))
+  );
+  if (contractFiles.length === 0 && maybeFrameworkFiles.length === 0) {
     process.exit(0);
   }
   const violations = [];
@@ -527,6 +528,26 @@ async function main() {
     }
   }
   violations.push(...runContractChecks(contractInputs, config));
+  let framework = detectFramework(projectRoot);
+  try {
+    const configPath = (0, import_node_path4.join)(projectRoot, ".a11y", "config", "a11y.config.json");
+    const raw = (0, import_node_fs3.readFileSync)(configPath, "utf8");
+    const parsed = JSON.parse(raw);
+    if (typeof parsed["framework"] === "string") {
+      framework = parsed["framework"];
+    }
+  } catch {
+  }
+  let eslintSkippedWarning = null;
+  if (framework === "unknown" && maybeFrameworkFiles.length > 0) {
+    if (process.stdin.isTTY) {
+      framework = await promptFramework();
+      persistFrameworkChoice(projectRoot, framework);
+    } else {
+      eslintSkippedWarning = 'a11y-sdk pre-commit: framework not detected and no terminal to ask on \u2014 ESLint a11y checks were SKIPPED for the staged files (contract checks still ran).\nSet "framework" ("react" | "vue" | "svelte" | "angular") in .a11y/config/a11y.config.json to enable them.\n';
+    }
+  }
+  const relevantFiles = filterStagedFiles(allStaged, framework);
   if (relevantFiles.length > 0) {
     let ESLint;
     try {
@@ -566,7 +587,9 @@ async function main() {
         if (!msg.ruleId) continue;
         if (!isRuleEnabled(msg.ruleId, config)) continue;
         violations.push({
-          file: result.filePath,
+          // Contract checks report paths relative to the project root;
+          // match that instead of ESLint's absolute paths.
+          file: (0, import_node_path4.relative)(projectRoot, result.filePath),
           line: msg.line,
           ruleId: msg.ruleId,
           message: msg.message,
@@ -574,6 +597,11 @@ async function main() {
         });
       }
     }
+  }
+  if (eslintSkippedWarning) {
+    process.stderr.write(`
+\u26A0 ${eslintSkippedWarning}
+`);
   }
   if (violations.length === 0) {
     process.exit(0);

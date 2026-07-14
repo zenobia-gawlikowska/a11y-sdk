@@ -47,7 +47,7 @@ function detectFramework(projectRoot) {
   if ("react" in deps) return "react";
   return "unknown";
 }
-if (require.main === module) {
+if (require.main === module && (0, import_node_path.basename)(process.argv[1] ?? "").startsWith("detect-framework")) {
   const projectRoot = process.argv[2] ?? process.cwd();
   process.stdout.write(detectFramework(projectRoot) + "\n");
 }
