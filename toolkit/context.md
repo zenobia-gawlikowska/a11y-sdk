@@ -27,7 +27,7 @@ findings. The machine-readable version of this map is `.a11y/rules/registry.json
 | Criterion | Deterministic checker(s) | Remaining judgment |
 |---|---|---|
 | 1.1.1 Non-text Content | lint + axe | alt text meaningful? decorative correctly hidden? |
-| 1.3.1 Info and Relationships | lint + axe + behave `nav-labels`, `table`, `regions-headings`, `form-navigation` | semantics match visual structure |
+| 1.3.1 Info and Relationships | lint + axe (incl. best-practice `region`/`landmark-*`/`heading-order`/`page-has-heading-one`/`empty-heading`, force-enabled — see `audit.ts`'s `BEST_PRACTICE_RULES`) + behave `nav-labels`, `table`, `regions-headings`, `form-navigation` | semantics match visual structure |
 | 1.3.2 Meaningful Sequence | — | DOM order vs. reading order |
 | 1.3.5 Identify Input Purpose | lint (token validity; missing autocomplete on personal-data inputs) + behave `autocomplete` | correct token choice |
 | 1.4.1 Use of Color | — | color-only signalling |
@@ -51,7 +51,7 @@ findings. The machine-readable version of this map is `.a11y/rules/registry.json
 | 3.3.1 Error Identification | behave `form-navigation` (aria-invalid/aria-describedby pairing) | does the error text accurately describe the problem; is validation triggered app-appropriately |
 | 3.3.2 Labels or Instructions | lint + axe + behave `form-navigation` (accessible name, radio-group fieldset/legend) | label describes purpose |
 | 4.1.1 Parsing | axe | — |
-| 4.1.2 Name, Role, Value | lint (incl. dialog & aria-expanded contracts) + axe + behave `disclosure`, `dialog` | state completeness of custom widgets |
+| 4.1.2 Name, Role, Value | lint (incl. dialog & aria-expanded contracts) + axe + behave `disclosure`, `dialog`, `nav-current` | state completeness of custom widgets |
 | 4.1.3 Status Messages | behave `live-region-static` (partial) | role choice; injection timing |
 
 The full prose rules below remain the **generation-time guidance** — apply
@@ -319,10 +319,14 @@ activation.
 
 **Implementation pointer:** see `rules/landmark-usage.md` and `rules/keyboard-nav.md`.
 
-**Deterministic check:** `behave.cjs --recipes nav-labels,disclosure,menu-keyboard`
+**Deterministic check:** `behave.cjs --recipes nav-labels,disclosure,menu-keyboard,nav-current`
 verifies unique nav labels, that `aria-expanded` toggles actually toggle (and
-`aria-controls` resolves), and that `role="menu"` implements the arrow-key
-contract it promises.
+`aria-controls` resolves), that `role="menu"` implements the arrow-key
+contract it promises, and — for any nav link whose `href` resolves to the
+current page's URL — that it (and only it) carries `aria-current="page"`.
+Pages where no nav link points at the current page (SPA navs driven entirely
+by client-side routing, or a page just not represented in the nav) skip this
+check rather than guessing.
 
 ---
 
@@ -345,8 +349,15 @@ would: it fails on zero or multiple `<main>` landmarks, unnamed/duplicate
 banner-contentinfo-complementary landmarks when more than one exists, a
 missing `<h1>`, skipped heading levels, and empty headings — and warns when
 visible content sits outside every landmark (a heuristic with legitimate
-exceptions, so it doesn't block). Whether the chosen HTML semantics actually
-match the visual structure remains a judgment check.
+exceptions, so it doesn't block). `audit.cjs` covers the same ground with
+axe-core's `region`/`landmark-*`/`heading-order`/`page-has-heading-one`/
+`empty-heading` rules — the overlap is intentional (the same "commit-time
+lint / runtime behave twin" pattern this toolkit already uses elsewhere), so
+`regions-headings` still catches these when `behave.cjs` runs standalone.
+Region/landmark navigation is itself a static structural property, not a
+runtime interaction — there's no meaningful additional *behavioral* test to
+add here beyond what these two layers already check. Whether the chosen HTML
+semantics actually match the visual structure remains a judgment check.
 
 ---
 
@@ -413,18 +424,26 @@ node .a11y/scripts/behave.cjs <url> --dialog-trigger "#open-settings"
 
 Behavioral recipes: `reflow-320`, `zoom-200`, `skip-link`, `focus-visible`,
 `tab-order`, `dialog`, `disclosure`, `menu-keyboard`, `nav-labels`,
-`regions-headings`, `table`, `autocomplete`, `form-navigation`,
+`nav-current`, `regions-headings`, `table`, `autocomplete`, `form-navigation`,
 `live-region-static`. All run by default; `--recipes` selects a subset. Each
 recipe reloads the page, so they cannot interfere with each other.
 
-Two recipes are organized around assistive-technology personas rather than a
-single component: `tab-order` walks the page the way a sighted keyboard-only
+Three recipes are organized around assistive-technology personas rather than
+a single component: `tab-order` walks the page the way a sighted keyboard-only
 user would (every ARIA-interactive element reachable by Tab, no positive
-tabindex, Shift+Tab retraces Tab exactly); `regions-headings` and
-`form-navigation` walk it the way a screen reader user's rotor/forms mode
+tabindex, Shift+Tab retraces Tab exactly); `regions-headings`, `nav-current`,
+and `form-navigation` walk it the way a screen reader user's rotor/forms mode
 would (one `<main>`, uniquely-labelled banner/contentinfo/complementary
-landmarks, a sane heading hierarchy, every control named, radio groups
-grouped, error states wired with aria-describedby).
+landmarks, a sane heading hierarchy, "you are here" marked correctly in nav,
+every control named, radio groups grouped, error states wired with
+aria-describedby).
+
+`audit.cjs` force-enables a curated set of axe-core rules that ship tagged
+only `best-practice` (no `wcag2a`/`wcag2aa`/`wcag2aaa` tag, so the default
+tag filter would silently skip them): `region` (all content inside a
+landmark), `landmark-one-main`, `landmark-unique`, the `landmark-*-is-top-level`
+and `landmark-no-duplicate-*` family, `heading-order`, `page-has-heading-one`,
+and `empty-heading`. See `audit.ts`'s `BEST_PRACTICE_RULES` for the exact list.
 
 **Step-by-step:**
 1. Ask the developer: "What URL is the component available at?" (if not stated)

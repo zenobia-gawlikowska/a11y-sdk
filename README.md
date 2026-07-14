@@ -98,9 +98,9 @@ node .a11y/scripts/audit.cjs <url> --level AAA
 node .a11y/scripts/behave.cjs <url>                 # behavioral recipes
 ```
 
-`audit.cjs` runs the axe-core scan; results are grouped by WCAG criterion, ordered by impact (`critical → serious → moderate → minor`), and written to `.a11y/audit-results.json`.
+`audit.cjs` runs the axe-core scan; results are grouped by WCAG criterion, ordered by impact (`critical → serious → moderate → minor`), and written to `.a11y/audit-results.json`. On top of the WCAG-tagged rule set, it force-enables a curated group of axe-core rules that ship tagged only `best-practice` (no `wcag2a`/`wcag2aa`/`wcag2aaa` tag, so the default filter would silently skip them): `region` (all page content must sit inside a landmark), `landmark-one-main`, `landmark-unique`, the `landmark-*-is-top-level` and `landmark-no-duplicate-*` family, `heading-order`, `page-has-heading-one`, and `empty-heading`. See `BEST_PRACTICE_RULES` in `src/audit.ts`.
 
-`behave.cjs` runs deterministic *behavioral* recipes that axe can't check — it drives a real page with Playwright and observes what happens. Two recipes are organized around assistive-technology personas rather than a single component: `tab-order` audits the page the way a keyboard-only user would, and `regions-headings` / `form-navigation` audit it the way a screen reader user's rotor and forms modes would.
+`behave.cjs` runs deterministic *behavioral* recipes that axe can't check — it drives a real page with Playwright and observes what happens. Three recipes are organized around assistive-technology personas rather than a single component: `tab-order` audits the page the way a keyboard-only user would, and `regions-headings` / `nav-current` / `form-navigation` audit it the way a screen reader user's rotor and forms modes would.
 
 | Recipe | WCAG | What it checks |
 |---|---|---|
@@ -113,6 +113,7 @@ node .a11y/scripts/behave.cjs <url>                 # behavioral recipes
 | `disclosure` | 4.1.2 | `aria-expanded` toggles actually toggle on activation; `aria-controls` resolves |
 | `menu-keyboard` | 2.1.1 | `role="menu"` implements the arrow-key contract it promises |
 | `nav-labels` | 1.3.1 | Multiple `<nav>` landmarks have unique accessible names |
+| `nav-current` | 4.1.2 / 2.4.8 (AAA) | *(screen-reader persona)* Any nav link resolving to the current page's URL carries `aria-current="page"`, and only one link per nav claims it |
 | `regions-headings` | 1.3.1 / 2.4.6 | *(screen-reader persona)* Exactly one `<main>`; uniquely-labelled banner/contentinfo/complementary landmarks; a single `<h1>` with no skipped or empty heading levels |
 | `table` | 1.3.1 | Caption/name, `<th>` scope, `aria-sort` actually toggles |
 | `autocomplete` | 1.3.5 | Personal-data inputs carry `autocomplete` |
