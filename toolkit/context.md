@@ -9,6 +9,57 @@ To use the audit feature, ask: "audit this page at localhost:3000".
 
 ---
 
+## Enforcement Map — run scripts before reasoning
+
+Most rules in this file are enforced by deterministic tooling. **Never assert
+that a script-owned rule passes or fails by reading code or reasoning about
+it** — run the owning checker and report its output. Reserve judgment for the
+rules marked "judgment" below, and for interpreting and fixing checker
+findings. The machine-readable version of this map is `.a11y/rules/registry.json`.
+
+| Layer | Tool | When it runs |
+|---|---|---|
+| `lint` | framework ESLint a11y plugin | pre-commit hook, on staged files |
+| `axe` | `node .a11y/scripts/audit.cjs <url>` | on demand |
+| `behave` | `node .a11y/scripts/behave.cjs <url>` | on demand |
+| judgment | LLM / human review | generation & review time |
+
+| Criterion | Deterministic checker(s) | Remaining judgment |
+|---|---|---|
+| 1.1.1 Non-text Content | lint + axe | alt text meaningful? decorative correctly hidden? |
+| 1.3.1 Info and Relationships | lint + axe + behave `nav-labels`, `table` | semantics match visual structure |
+| 1.3.2 Meaningful Sequence | — | DOM order vs. reading order |
+| 1.3.5 Identify Input Purpose | lint (token validity) + behave `autocomplete` | correct token choice |
+| 1.4.1 Use of Color | — | color-only signalling |
+| 1.4.3 Contrast (Minimum) | axe | — |
+| 1.4.4 Resize Text | behave `zoom-200` | px→rem source review |
+| 1.4.10 Reflow | behave `reflow-320` | — |
+| 1.4.11 Non-text Contrast | — | component & focus-ring contrast |
+| 1.4.13 Content on Hover/Focus | — | tooltip behavior |
+| 2.1.1 Keyboard | lint + behave `menu-keyboard` | full operability of custom widgets |
+| 2.1.2 No Keyboard Trap | behave `dialog` | traps outside dialogs |
+| 2.4.1 Bypass Blocks | axe + behave `skip-link` | — |
+| 2.4.3 Focus Order | lint (`tabindex-no-positive`) | logical order |
+| 2.4.4 Link Purpose | lint + axe | text describes destination |
+| 2.4.6 Headings and Labels | lint | descriptive quality |
+| 2.4.7 Focus Visible | behave `focus-visible` | — |
+| 2.4.11 Focus Appearance | behave `focus-visible` (presence only) | 2px perimeter / 3:1 contrast |
+| 2.5.3 Label in Name | axe | — |
+| 3.1.1 Language of Page | lint + axe | correct language code |
+| 3.2.1 On Focus | lint (`no-autofocus`) | unexpected context changes |
+| 3.2.2 On Input | lint (Vue) | auto-submit behavior |
+| 3.3.1 Error Identification | — | error wiring on real validation |
+| 3.3.2 Labels or Instructions | lint + axe | label describes purpose |
+| 4.1.1 Parsing | axe | — |
+| 4.1.2 Name, Role, Value | lint + axe + behave `disclosure`, `dialog` | state completeness of custom widgets |
+| 4.1.3 Status Messages | behave `live-region-static` (partial) | role choice; injection timing |
+
+The full prose rules below remain the **generation-time guidance** — apply
+them when writing code. The map above governs **verification**: what to run,
+and what is left for judgment, when checking code.
+
+---
+
 ## WCAG 2.1 AA — Minimum Coverage
 
 Every component generated or reviewed MUST satisfy these criteria.
@@ -157,6 +208,11 @@ the dialog.
 
 **Implementation pointer:** see `rules/focus-trap.md` for the focus-trap loop.
 
+**Deterministic check:** `node .a11y/scripts/behave.cjs <url> --recipes dialog`
+verifies aria-modal, accessible name, focus trap, Escape-to-close, and focus
+restore. If auto-detection can't open the dialog, pass
+`--dialog-trigger "<css selector>"`.
+
 ---
 
 ### Form
@@ -178,6 +234,11 @@ the dialog.
 
 **Implementation pointer:** see `rules/form-labeling.md`.
 
+**Deterministic check:** labels are covered by the pre-commit lint and
+`audit.cjs`; `behave.cjs --recipes autocomplete` flags personal-data inputs
+missing `autocomplete`. Error-state wiring on real validation remains a
+judgment check.
+
 ---
 
 ### Data Table
@@ -196,6 +257,10 @@ the dialog.
 
 **Pagination / loading:** use `aria-live="polite"` on the table container so
 screen readers are informed when rows update.
+
+**Deterministic check:** `behave.cjs --recipes table` verifies caption/name,
+`<th>` header cells with scope, and that `aria-sort` actually toggles on
+activation.
 
 ---
 
@@ -218,6 +283,11 @@ screen readers are informed when rows update.
 
 **Implementation pointer:** see `rules/landmark-usage.md` and `rules/keyboard-nav.md`.
 
+**Deterministic check:** `behave.cjs --recipes nav-labels,disclosure,menu-keyboard`
+verifies unique nav labels, that `aria-expanded` toggles actually toggle (and
+`aria-controls` resolves), and that `role="menu"` implements the arrow-key
+contract it promises.
+
 ---
 
 ### Toast / Alert / Notification
@@ -238,6 +308,11 @@ screen readers are informed when rows update.
   will be cut off
 
 **Implementation pointer:** see `rules/live-region.md`.
+
+**Deterministic check:** `behave.cjs --recipes live-region-static` catches
+live regions nested inside `aria-live` containers and static alert text
+present at load. Injection timing and role-urgency choice remain judgment
+checks.
 
 ---
 
@@ -260,27 +335,47 @@ Detailed guidance for patterns that require precise implementation:
 
 ---
 
-## Running an Audit
+## Running the Audits
 
-When a developer asks to audit a page or component, run the audit script
-against their dev server and present results conversationally.
+When a developer asks to audit a page or component, run BOTH deterministic
+audit scripts against their dev server, then present merged results
+conversationally. Your role is orchestration and interpretation — the scripts
+decide pass/fail for everything they cover.
 
 **Invocation:**
 ```
-node .a11y/scripts/audit.cjs <url>
+node .a11y/scripts/audit.cjs <url>                 # axe-core static scan
 node .a11y/scripts/audit.cjs <url> --level AAA
+node .a11y/scripts/behave.cjs <url>                # behavioral recipes
+node .a11y/scripts/behave.cjs <url> --recipes dialog,focus-visible
+node .a11y/scripts/behave.cjs <url> --dialog-trigger "#open-settings"
 ```
+
+Behavioral recipes: `reflow-320`, `zoom-200`, `skip-link`, `focus-visible`,
+`dialog`, `disclosure`, `menu-keyboard`, `nav-labels`, `table`,
+`autocomplete`, `live-region-static`. All run by default; `--recipes` selects
+a subset. Each recipe reloads the page, so they cannot interfere with each
+other.
 
 **Step-by-step:**
 1. Ask the developer: "What URL is the component available at?" (if not stated)
-2. Confirm a dev server is running at that URL before launching the audit
+2. Confirm a dev server is running at that URL before launching the audits
 3. Run `node .a11y/scripts/audit.cjs <url>`
-4. Present results grouped by WCAG criterion, ordered by impact level:
-   `critical → serious → moderate → minor`
-5. For each violation: name the element, state the WCAG success criterion and
+4. Run `node .a11y/scripts/behave.cjs <url>` — if a modal exists but the
+   `dialog` recipe reports it could not open it, find the trigger control and
+   re-run with `--dialog-trigger "<selector>"`. Supplying that selector is
+   your job (glue), not the script's.
+5. Present merged results grouped by WCAG criterion, ordered by impact:
+   `critical → serious → moderate → minor`, with behave failures ranked
+   alongside axe violations — a broken focus trap is as real as a missing alt
+6. For each violation: name the element, state the WCAG success criterion and
    its plain-English title, give a one-sentence fix prescription
+7. ONLY THEN apply the judgment checks from the Enforcement Map (right
+   column) — alt-text quality, link-text clarity, color-only signalling,
+   reading order, error-state wiring, live-region injection timing. Do not
+   re-litigate anything a script already decided.
 
-**If Playwright is not installed (exit code 3):**
+**If Playwright is not installed (exit code 3 from either script):**
 Tell the developer:
 > The audit requires Playwright. Run these commands in your project:
 > ```
@@ -289,8 +384,12 @@ Tell the developer:
 > ```
 > Then re-run the audit.
 
+**Exit codes (both scripts):** `0` clean, `1` violations found, `2`
+infrastructure error (bad URL, unreachable server), `3` Playwright missing.
+behave warnings do not affect the exit code — surface them as advisories.
+
 **Output location:** results are also written to `.a11y/audit-results.json`
-for reference.
+and `.a11y/behave-results.json` for reference.
 
 **Conversational framing:** Do not dump raw JSON at the developer. Present a
 narrative summary: "I found 3 critical issues and 2 serious issues. The most
