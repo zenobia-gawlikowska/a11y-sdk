@@ -48,6 +48,8 @@ __export(behave_exports, {
   recipeSkipLink: () => recipeSkipLink,
   recipeTabOrder: () => recipeTabOrder,
   recipeTable: () => recipeTable,
+  recipeTargetSize: () => recipeTargetSize,
+  recipeTextSpacing: () => recipeTextSpacing,
   recipeUniqueLabels: () => recipeUniqueLabels,
   recipeVisualHeadings: () => recipeVisualHeadings,
   recipeZoom200: () => recipeZoom200,
@@ -156,6 +158,134 @@ async function recipeZoom200(page) {
       "No sampled text responds to root font-size scaling \u2014 font sizes appear hard-anchored in px. Prefer rem/em so user font-size settings take effect."
     ]
   };
+}
+async function recipeTextSpacing(page) {
+  const wcag = "1.4.12 Text Spacing";
+  const before = await page.evaluate(() => {
+    const isVisible = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
+    let clippedCount = 0;
+    for (const el of Array.from(document.querySelectorAll("*"))) {
+      if (!isVisible(el)) continue;
+      const cs = getComputedStyle(el);
+      const hidesOverflow = cs.overflowY === "hidden" || cs.overflowY === "clip";
+      if (hidesOverflow && el.scrollHeight > el.clientHeight + 1) {
+        el.setAttribute("data-a11y-behave-pre-clipped", "1");
+        clippedCount++;
+      }
+    }
+    return {
+      docOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      clippedCount
+    };
+  });
+  await page.addStyleTag({
+    content: `
+      * {
+        line-height: 1.5 !important;
+        letter-spacing: 0.12em !important;
+        word-spacing: 0.16em !important;
+      }
+      p {
+        margin-bottom: 2em !important;
+      }
+    `
+  });
+  await page.waitForTimeout(200);
+  const after = await page.evaluate(() => {
+    const isVisible = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
+    const newlyClipped = [];
+    for (const el of Array.from(document.querySelectorAll("*"))) {
+      if (!isVisible(el)) continue;
+      if (el.hasAttribute("data-a11y-behave-pre-clipped")) continue;
+      const cs = getComputedStyle(el);
+      const hidesOverflow = cs.overflowY === "hidden" || cs.overflowY === "clip";
+      if (!hidesOverflow) continue;
+      if (el.scrollHeight <= el.clientHeight + 1) continue;
+      const text = (el.textContent ?? "").trim().slice(0, 50);
+      const id = el.id ? `#${el.id}` : "";
+      newlyClipped.push(
+        `<${el.tagName.toLowerCase()}${id}> "${text}" clips content (${el.scrollHeight}px of content in a ${el.clientHeight}px box) once text-spacing is applied.`
+      );
+      if (newlyClipped.length >= 12) break;
+    }
+    for (const el of Array.from(document.querySelectorAll("[data-a11y-behave-pre-clipped]"))) {
+      el.removeAttribute("data-a11y-behave-pre-clipped");
+    }
+    return {
+      docOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      newlyClipped
+    };
+  });
+  const details = [];
+  if (after.docOverflow > before.docOverflow + 1) {
+    details.push(
+      `Horizontal overflow grew from ${before.docOverflow}px to ${after.docOverflow}px once text-spacing is applied \u2014 content must reflow, not clip, under WCAG's minimum spacing.`
+    );
+  }
+  details.push(...after.newlyClipped);
+  return {
+    recipe: "text-spacing",
+    wcag,
+    status: details.length > 0 ? "fail" : "pass",
+    details
+  };
+}
+var TARGET_SIZE_SELECTOR = "a[href], button, input:not([type=hidden]):not([type=checkbox]):not([type=radio]), select, textarea, [role=button], [role=link], [role=switch], [role=menuitem], [role=tab]";
+async function recipeTargetSize(page) {
+  const wcag = "2.5.8 Target Size (Minimum) (WCAG 2.2)";
+  const res = await page.evaluate((sel) => {
+    const isVisible = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
+    const MIN = 24;
+    const MAX_CANDIDATES = 60;
+    const candidates = Array.from(document.querySelectorAll(sel)).filter(isVisible).filter((el) => el.tagName !== "A" || getComputedStyle(el).display !== "inline").slice(0, MAX_CANDIDATES).map((el) => {
+      const r = el.getBoundingClientRect();
+      const text = (el.textContent ?? el.getAttribute("aria-label") ?? "").trim().slice(0, 40);
+      return { rect: r, desc: `<${el.tagName.toLowerCase()}> "${text}"` };
+    }).filter((c) => c.rect.width > 0 && c.rect.height > 0);
+    const failDetails = [];
+    const warnDetails = [];
+    for (const c of candidates) {
+      if (c.rect.width >= MIN && c.rect.height >= MIN) continue;
+      const cx = c.rect.left + c.rect.width / 2;
+      const cy = c.rect.top + c.rect.height / 2;
+      const zone = {
+        left: cx - MIN / 2,
+        right: cx + MIN / 2,
+        top: cy - MIN / 2,
+        bottom: cy + MIN / 2
+      };
+      const crowded = candidates.some((other) => {
+        if (other === c) return false;
+        return !(other.rect.right <= zone.left || other.rect.left >= zone.right || other.rect.bottom <= zone.top || other.rect.top >= zone.bottom);
+      });
+      const sizeDesc = `${Math.round(c.rect.width)}\xD7${Math.round(c.rect.height)}px`;
+      if (crowded) {
+        failDetails.push(
+          `${c.desc}: ${sizeDesc} target is under 24\xD724px and sits close enough to another target that the spacing exception doesn't apply either \u2014 add padding or increase size.`
+        );
+      } else {
+        warnDetails.push(
+          `${c.desc}: ${sizeDesc} target is under 24\xD724px \u2014 verify it qualifies for an exception (adequate spacing from other targets, inline text link, or essential presentation) before leaving it as-is.`
+        );
+      }
+    }
+    return { failDetails, warnDetails, total: candidates.length };
+  }, TARGET_SIZE_SELECTOR);
+  if (res.total === 0) {
+    return {
+      recipe: "target-size",
+      wcag,
+      status: "skipped",
+      details: ["No interactive elements found on the page."]
+    };
+  }
+  if (res.failDetails.length > 0) {
+    return { recipe: "target-size", wcag, status: "fail", details: res.failDetails };
+  }
+  if (res.warnDetails.length > 0) {
+    return { recipe: "target-size", wcag, status: "warn", details: res.warnDetails };
+  }
+  return { recipe: "target-size", wcag, status: "pass", details: [] };
 }
 async function recipeSkipLink(page) {
   const wcag = "2.4.1 Bypass Blocks";
@@ -1320,6 +1450,8 @@ async function recipeLiveRegionStatic(page) {
 var ALL_RECIPES = [
   { name: "reflow-320", run: recipeReflow320 },
   { name: "zoom-200", run: recipeZoom200 },
+  { name: "text-spacing", run: recipeTextSpacing },
+  { name: "target-size", run: recipeTargetSize },
   { name: "skip-link", run: recipeSkipLink },
   { name: "focus-visible", run: recipeFocusVisible },
   { name: "tab-order", run: recipeTabOrder },
@@ -1480,6 +1612,8 @@ if (isMain) {
   recipeSkipLink,
   recipeTabOrder,
   recipeTable,
+  recipeTargetSize,
+  recipeTextSpacing,
   recipeUniqueLabels,
   recipeVisualHeadings,
   recipeZoom200,

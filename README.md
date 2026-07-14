@@ -98,7 +98,7 @@ node .a11y/scripts/audit.cjs <url> --level AAA
 node .a11y/scripts/behave.cjs <url>                 # behavioral recipes
 ```
 
-`audit.cjs` runs the axe-core scan; results are grouped by WCAG criterion, ordered by impact (`critical → serious → moderate → minor`), and written to `.a11y/audit-results.json`. On top of the WCAG-tagged rule set, it force-enables a curated group of axe-core rules that ship tagged only `best-practice` (no `wcag2a`/`wcag2aa`/`wcag2aaa` tag, so the default filter would silently skip them): `region` (all page content must sit inside a landmark), `landmark-one-main`, `landmark-unique`, the `landmark-*-is-top-level` and `landmark-no-duplicate-*` family, `heading-order`, `page-has-heading-one`, and `empty-heading`. See `BEST_PRACTICE_RULES` in `src/audit.ts`.
+`audit.cjs` runs the axe-core scan; results are grouped by WCAG criterion, ordered by impact (`critical → serious → moderate → minor`), and written to `.a11y/audit-results.json`. It scans against `wcag2a`/`wcag2aa`/`wcag21a`/`wcag21aa`/`wcag22aa` (all AA-and-below rules across WCAG 2.0/2.1/2.2), plus `wcag2aaa` when `--level AAA` is passed. On top of that tag set, it force-enables two curated groups of axe-core rules that the tag filter alone would otherwise skip: rules tagged only `best-practice` (no `wcag2a`/`wcag2aa`/`wcag2aaa` tag) — `region` (all page content must sit inside a landmark), `landmark-one-main`, `landmark-unique`, the `landmark-*-is-top-level` and `landmark-no-duplicate-*` family, `heading-order`, `page-has-heading-one`, and `empty-heading` (see `BEST_PRACTICE_RULES` in `src/audit.ts`) — and WCAG 2.1/2.2-tagged rules that axe-core silently drops once any custom `.options({ rules })` map is in play — `target-size`, `css-orientation-lock`, and `label-content-name-mismatch` (see `WCAG_21_22_RULES` in `src/audit.ts`).
 
 `behave.cjs` runs deterministic *behavioral* recipes that axe can't check — it drives a real page with Playwright and observes what happens. Three recipes are organized around assistive-technology personas rather than a single component: `tab-order` audits the page the way a keyboard-only user would, and `regions-headings` / `nav-current` / `form-navigation` audit it the way a screen reader user's rotor and forms modes would.
 
@@ -106,6 +106,8 @@ node .a11y/scripts/behave.cjs <url>                 # behavioral recipes
 |---|---|---|
 | `reflow-320` | 1.4.10 | No horizontal scroll at a 320px viewport |
 | `zoom-200` | 1.4.4 | No horizontal scroll at 200%-zoom-equivalent width; text responds to root font-size scaling |
+| `text-spacing` | 1.4.12 | No clipped/overflowing content after injecting WCAG-minimum text spacing (1.5 line-height, 0.12em letter-spacing, 0.16em word-spacing, 2em paragraph spacing); pre-existing clipping is excluded |
+| `target-size` | 2.5.8 | Interactive targets under 24×24px `fail` when another target's zone overlaps theirs, `warn` (exception candidate) when isolated |
 | `skip-link` | 2.4.1 | First Tab stop is a working skip link when a nav landmark exists |
 | `focus-visible` | 2.4.7 | Every Tab stop has a visible focus indicator (computed style changes on focus) |
 | `tab-order` | 2.1.1 / 2.4.3 | *(keyboard-user persona)* Every ARIA-interactive element is Tab-reachable (composite-widget roving-tabindex items excepted); no positive `tabindex`; Shift+Tab retraces the Tab sequence exactly |

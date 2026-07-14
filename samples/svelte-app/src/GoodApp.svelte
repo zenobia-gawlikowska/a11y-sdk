@@ -61,6 +61,19 @@
   <button aria-label="Export subscriber list" on:click={onAction}>Export</button>
   <button aria-label="Export analytics report" on:click={onAction}>Export</button>
 
+  <div style="width: 300px; font-size: 16px">
+    Premium wireless headphones with active noise cancellation and thirty hour battery life.
+  </div>
+
+  <div style="display: flex; gap: 8px">
+    <button style="width: 44px; height: 44px" aria-label="Edit" on:click={onAction}>
+      ✏️
+    </button>
+    <button style="width: 44px; height: 44px" aria-label="Delete" on:click={onAction}>
+      🗑️
+    </button>
+  </div>
+
   <ul>
     <li>Update A — released today</li>
     <li>Update B — released yesterday</li>

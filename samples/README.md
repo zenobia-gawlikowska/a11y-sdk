@@ -63,13 +63,25 @@ and wires the pre-commit hook via `git config core.hooksPath .a11y/hooks`.
 | 14 | Two distinct form fields sharing an accessible name | 2.4.6 / 4.1.2 | Layer 3 (`behave:unique-labels`) |
 | 15 | Two buttons sharing an accessible name | 4.1.2 | Layer 3 (`behave:unique-labels`, warn-only) |
 | 16 | `<table>` without `<caption>` / `scope` on `<th>` | 1.3.1 | Layer 3 (`behave:table`, Angular only) |
+| 17 | Fixed-height, `overflow:hidden` text container that clips once WCAG-minimum text spacing is applied | 1.4.12 | Layer 3 (axe `avoid-inline-spacing`) + Layer 3 (`behave:text-spacing`) |
+| 18 | Two 16×16px icon buttons flush against each other (under 24×24px, crowded) | 2.5.8 | Layer 3 (axe `target-size`) + Layer 3 (`behave:target-size`) |
 
 Violations #8–#12 were added alongside the `tab-order`, `nav-current`,
 `regions-headings`, `visual-headings`, and `form-navigation` behave recipes;
-#13–#15 alongside `unique-labels` — see the root `README.md`'s recipe table
+#13–#15 alongside `unique-labels`; #17–#18 alongside `text-spacing` and
+`target-size` — see the root `README.md`'s recipe table
 for what each one checks. Every one of these is fixed on the corresponding
 good page/route; run `behave.cjs` against both (see the Layer 3 quickstart
 below) to see the fail → pass contrast directly.
+
+**Note on target-size:** fixing #18 also exposed that the good pages' default
+browser-styled buttons, text inputs, and nav/skip links were themselves under
+24×24px — axe's `target-size` rule (and `behave:target-size`) flag *any*
+undersized target, not just the intentionally bad ones. Each good page/route
+therefore carries a small CSS block (`good.html`'s `<style>` for React/Vue/
+Svelte; a component-scoped `styles` array on Angular's `GoodComponent`, so it
+doesn't leak into `BadComponent`) giving `button`, text-like `input`, `nav a`,
+and `.skip-link` a 24px minimum height and matching padding.
 
 **Note on Svelte:** Svelte's a11y rules are built into the compiler itself, not a
 separate ESLint plugin. They are surfaced via the `svelte/valid-compile` rule which

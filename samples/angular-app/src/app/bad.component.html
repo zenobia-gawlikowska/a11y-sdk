@@ -18,6 +18,9 @@
   [14] Two distinct "Promo code" fields — behave:unique-labels
   [15] Two "Export" buttons — behave:unique-labels (warn-only)
   [missing] table has no <caption> and headers have no scope
+  [16] Fixed-height, overflow:hidden text container — clips once WCAG-minimum
+       text spacing is applied — behave:text-spacing
+  [17] Two 16x16px icon buttons with no gap between them — behave:target-size
 
   See good.component.html for the corrected version of this same page (/good).
 -->
@@ -90,3 +93,20 @@
     <td>42</td>
   </tr>
 </table>
+
+<!-- [16] fixed-height, clipped text container — fits at normal spacing,
+    overflows once WCAG-minimum text spacing is applied -->
+<div style="height: 58px; overflow: hidden; width: 300px; font-size: 16px">
+  Premium wireless headphones with active noise cancellation and thirty hour battery life.
+</div>
+
+<!-- [17] two 16x16px icon buttons flush against each other — under the
+    24x24px minimum and crowded, so the spacing exception doesn't apply -->
+<div style="display: flex; gap: 0">
+  <button style="width: 16px; height: 16px; padding: 0; margin: 0" (click)="onAction()">
+    ✏️
+  </button>
+  <button style="width: 16px; height: 16px; padding: 0; margin: 0" (click)="onAction()">
+    🗑️
+  </button>
+</div>

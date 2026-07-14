@@ -105,11 +105,21 @@ var BEST_PRACTICE_RULES = [
   "page-has-heading-one",
   "empty-heading"
 ];
+var WCAG_AA_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
+var WCAG_21_22_RULES = [
+  "target-size",
+  "css-orientation-lock",
+  "label-content-name-mismatch",
+  "avoid-inline-spacing",
+  "autocomplete-valid"
+];
 async function runAxeScan(page, level) {
   const { AxeBuilder } = await import("@axe-core/playwright");
-  const tags = level === "AAA" ? ["wcag2a", "wcag2aa", "wcag2aaa"] : ["wcag2a", "wcag2aa"];
+  const tags = level === "AAA" ? [...WCAG_AA_TAGS, "wcag2aaa"] : WCAG_AA_TAGS;
   const axeResults = await new AxeBuilder({ page }).withTags(tags).options({
-    rules: Object.fromEntries(BEST_PRACTICE_RULES.map((id) => [id, { enabled: true }]))
+    rules: Object.fromEntries(
+      [...BEST_PRACTICE_RULES, ...WCAG_21_22_RULES].map((id) => [id, { enabled: true }])
+    )
   }).analyze();
   return { violations: axeResults.violations };
 }

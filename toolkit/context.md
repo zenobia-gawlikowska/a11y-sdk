@@ -35,6 +35,7 @@ findings. The machine-readable version of this map is `.a11y/rules/registry.json
 | 1.4.4 Resize Text | lint (px font sizes) + behave `zoom-200` | runtime-computed px sizes |
 | 1.4.10 Reflow | behave `reflow-320` | — |
 | 1.4.11 Non-text Contrast | — | component & focus-ring contrast |
+| 1.4.12 Text Spacing | axe (`avoid-inline-spacing`) + behave `text-spacing` (injects WCAG-minimum spacing, diffs clipping/overflow before/after) | — |
 | 1.4.13 Content on Hover/Focus | — | tooltip behavior |
 | 2.1.1 Keyboard | lint + behave `menu-keyboard`, `tab-order` | full operability of custom widgets |
 | 2.1.2 No Keyboard Trap | behave `dialog`, `tab-order` | traps that don't manifest as forward/backward asymmetry |
@@ -45,6 +46,7 @@ findings. The machine-readable version of this map is `.a11y/rules/registry.json
 | 2.4.7 Focus Visible | behave `focus-visible` | — |
 | 2.4.11 Focus Appearance | behave `focus-visible` (presence only) | 2px perimeter / 3:1 contrast |
 | 2.5.3 Label in Name | axe | — |
+| 2.5.8 Target Size (Minimum) | axe (`target-size`) + behave `target-size` (measures rendered targets, flags crowded/undersized, warns on exception candidates) | does a flagged target legitimately qualify for the inline/equivalent-target exception |
 | 3.1.1 Language of Page | lint + axe | correct language code |
 | 3.2.1 On Focus | lint (`no-autofocus`) | unexpected context changes |
 | 3.2.2 On Input | lint (Vue) | auto-submit behavior |
@@ -80,11 +82,20 @@ Never use a `<div>` where a semantic element exists.
 position content visually out of sequence with CSS (e.g. `order` in flexbox or
 `position: absolute`) without ensuring screen readers follow the correct order.
 
+**1.3.4 Orientation (WCAG 2.1)** — Content must not be locked to a single
+display orientation (portrait or landscape) unless a specific orientation is
+essential (e.g. a piano-keyboard app). Never force orientation via
+`transform: rotate()` media-query hacks.
+
 **1.3.5 Identify Input Purpose** — Form inputs for personal data must carry
 `autocomplete` attributes (`name`, `email`, `tel`, `street-address`, etc.).
 
 **1.4.1 Use of Color** — Never rely on color alone to convey information. Pair
 color with text, icon, or pattern.
+
+**1.4.2 Audio Control** — Audio that plays automatically for more than 3
+seconds must have a visible mechanism to pause, stop, or mute it, or must not
+autoplay at all. Never autoplay audio with no user-facing control.
 
 **1.4.3 Contrast (Minimum)** — Normal text: 4.5:1 contrast ratio minimum.
 Large text (≥ 18pt or ≥ 14pt bold): 3:1 minimum. Use a contrast checker for
@@ -98,6 +109,12 @@ requiring horizontal scrolling. Avoid fixed-width containers for text content.
 
 **1.4.11 Non-text Contrast** — UI components (buttons, inputs, checkboxes) and
 focus indicators must have at least 3:1 contrast against adjacent colors.
+
+**1.4.12 Text Spacing (WCAG 2.1)** — No loss of content or functionality when
+a user overrides text spacing to: line-height 1.5x, paragraph spacing 2x,
+letter-spacing 0.12x, word-spacing 0.16x. Never set fixed heights on text
+containers; never use `overflow: hidden`/`clip` on elements that hold
+user-facing text.
 
 **1.4.13 Content on Hover or Focus** — Tooltips and hover content must be:
 (a) dismissible without moving focus, (b) hoverable (pointer can move over the
@@ -140,6 +157,14 @@ unfocused states.
 the accessible name must contain the visible label text. `aria-label` that
 contradicts visible text will confuse users.
 
+**2.5.8 Target Size (Minimum) (WCAG 2.2)** — Interactive targets (buttons,
+links styled as controls, form controls) must be at least 24×24 CSS pixels,
+OR have enough spacing that a 24×24px zone centered on the target does not
+overlap another target's zone, OR qualify for an exception (the target is
+inline within a sentence, its size is not author-controlled, or an
+equivalent-function target of adequate size is available elsewhere on the
+page). Never rely on the exception as a first choice — pad small controls.
+
 ### Understandable
 
 **3.1.1 Language of Page** — The `<html>` element must have `lang` set to the
@@ -175,6 +200,79 @@ nested elements. Self-closing tags must be properly terminated in HTML5.
 complete) must be conveyed to assistive technology without receiving focus. Use
 `role="status"` (polite) or `role="alert"` (assertive). Do not use `role="alert"`
 for non-critical messages.
+
+---
+
+## Judgment-Only — Media, Timing & Motion
+
+These criteria have no reliable script coverage (no behave recipe simulates a
+video, a countdown, or a strobe effect) and axe's coverage, where it exists,
+only catches the *absence of a mechanism* — never whether that mechanism is
+adequate. Treat these as review checklist items, not tool output.
+
+**1.2.1 Audio-only / Video-only (Prerecorded)** — Prerecorded audio-only
+content needs a text transcript; prerecorded video-only content needs a text
+alternative or an audio track describing the visuals. `axe:audio-caption` /
+`axe:video-caption` only flag a `<video>`/`<audio>` element with zero
+`<track>` children — they cannot judge whether a transcript exists elsewhere
+on the page or whether a provided track is actually a transcript vs. captions.
+
+**1.2.2 Captions (Prerecorded)** — `axe:video-caption` only checks that a
+`<track kind="captions">` is present, never that the captions are accurate,
+synced, or complete. Caption quality review stays manual.
+
+**1.2.3 Audio Description or Media Alternative (Prerecorded)** — Prerecorded
+video with meaningful visual information needs either an audio-described
+track or a full text alternative. No checker verifies this; confirm manually
+whenever a video conveys information not present in its own audio.
+
+**1.2.4 Captions (Live)** — Live audio content (webinars, live streams) needs
+real-time captions. Entirely a process/judgment concern — nothing in this
+toolkit runs against live streams.
+
+**1.2.5 Audio Description (Prerecorded)** — Stronger than 1.2.3: prerecorded
+video needs audio description whenever visual-only information exists, even
+if a separate text alternative is also provided. Judgment call on whether the
+existing audio track already conveys the visual content.
+
+**1.2.6–1.2.9 (AAA: sign language, extended audio description, media
+alternative for live, audio-only for live)** — Only apply when this project's
+AAA gate is enabled (see `runAxeScan(page, "AAA")`). Judgment-only; no
+automated signal.
+
+**2.2.1 Timing Adjustable** — Time limits (session timeouts, auto-advancing
+carousels) must be extendable, disable-able, or absent. `axe:meta-refresh`
+only catches the `<meta http-equiv="refresh">` tag — it says nothing about
+JavaScript-driven `setTimeout`/`setInterval` redirects, session expiry, or
+countdown UI, which are the common real-world cases. Ask "does this
+auto-advance or expire, and can the user stop it?" whenever generating
+timed UI.
+
+**2.2.2 Pause, Stop, Hide** — Moving, blinking, scrolling, or auto-updating
+content that starts automatically and lasts more than 5 seconds needs a
+pause/stop/hide control. `axe:blink` and `axe:marquee` only catch the
+deprecated `<blink>`/`<marquee>` tags — they do not see CSS `animation`,
+`transition` carousels, auto-playing video backgrounds, or JS ticker
+widgets. Every auto-rotating carousel or auto-refreshing dashboard needs a
+visible pause control regardless of what the checkers report.
+
+**2.2.6 Timeouts (AAA)** — Users must be warned of data-loss timeouts (e.g.
+session expiry clearing a form) unless the data is preserved for 20+ hours
+after timeout. Judgment-only.
+
+**2.3.1 Three Flashes or Below Threshold** — Nothing may flash more than
+three times per second unless the flashing area and contrast are below the
+general/red flash thresholds. No checker measures flash rate; treat any
+strobing, rapidly-blinking, or high-contrast-flickering effect as a hard stop
+and flag it for manual review — this is a seizure-safety criterion, not a
+style preference.
+
+**2.3.2 / 2.3.3 (AAA: no flashing at all / animation from interactions)** —
+2.3.2 forbids any flashing outright; 2.3.3 requires motion-triggered
+animation (e.g. parallax on scroll) to respect `prefers-reduced-motion` and
+offer a way to disable it. Judgment-only; when generating scroll- or
+interaction-triggered animation, gate it behind
+`@media (prefers-reduced-motion: no-preference)` by default.
 
 ---
 
@@ -466,12 +564,20 @@ node .a11y/scripts/behave.cjs <url> --recipes dialog,focus-visible
 node .a11y/scripts/behave.cjs <url> --dialog-trigger "#open-settings"
 ```
 
-Behavioral recipes: `reflow-320`, `zoom-200`, `skip-link`, `focus-visible`,
-`tab-order`, `dialog`, `disclosure`, `menu-keyboard`, `nav-labels`,
-`nav-current`, `regions-headings`, `visual-headings`, `unique-labels`,
-`table`, `autocomplete`, `form-navigation`, `live-region-static`. All run by
-default; `--recipes` selects a subset. Each recipe reloads the page, so
-they cannot interfere with each other.
+Behavioral recipes: `reflow-320`, `zoom-200`, `text-spacing`, `target-size`,
+`skip-link`, `focus-visible`, `tab-order`, `dialog`, `disclosure`,
+`menu-keyboard`, `nav-labels`, `nav-current`, `regions-headings`,
+`visual-headings`, `unique-labels`, `table`, `autocomplete`, `form-navigation`,
+`live-region-static`. All run by default; `--recipes` selects a subset. Each
+recipe reloads the page, so they cannot interfere with each other.
+
+`text-spacing` injects the WCAG-minimum spacing values (1.5 line-height,
+0.12em letter-spacing, 0.16em word-spacing, 2em paragraph spacing) and
+diffs clipping/scroll-overflow before vs. after, excluding elements that
+were already clipped before injection. `target-size` measures every
+interactive element's rendered box: under 24×24px with another target
+inside its 24×24px zone `fail`s, under 24×24px but isolated `warn`s (the
+inline/exception cases need a human to confirm), 24×24px or larger `pass`es.
 
 `visual-headings` never `fail`s — it only `warn`s or `pass`es, since it
 hands back a candidate list (visually prominent non-heading text) rather
@@ -497,6 +603,16 @@ tag filter would silently skip them): `region` (all content inside a
 landmark), `landmark-one-main`, `landmark-unique`, the `landmark-*-is-top-level`
 and `landmark-no-duplicate-*` family, `heading-order`, `page-has-heading-one`,
 and `empty-heading`. See `audit.ts`'s `BEST_PRACTICE_RULES` for the exact list.
+
+`audit.cjs` also tags in `wcag21a`/`wcag21aa`/`wcag22aa` alongside the
+WCAG 2.0 `wcag2a`/`wcag2aa` tags, so WCAG 2.1/2.2-only criteria
+(1.3.4 Orientation, 1.3.5 autocomplete validity, 1.4.12 Text Spacing,
+2.5.3 Label in Name, 2.5.8 Target Size) are included in the AA scan, not
+just AAA. It force-enables `target-size`, `css-orientation-lock`, and
+`label-content-name-mismatch` for the same reason as the best-practice
+rules above — axe-core drops tag-matched rules that aren't also listed in
+`.options({ rules })` once that option is used at all. See `audit.ts`'s
+`WCAG_21_22_RULES`.
 
 **Step-by-step:**
 1. Ask the developer: "What URL is the component available at?" (if not stated)

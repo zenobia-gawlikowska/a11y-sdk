@@ -43,6 +43,11 @@ const BAD_HTML = `<!doctype html>
     <div role="menuitem" tabindex="-1">Item B</div>
   </div>
   <table><tr><td>1</td><td>2</td></tr></table>
+  <p style="height: 58px; overflow: hidden; width: 300px; font-size: 16px;">
+    Line one of text here now.
+    Line two of text here now.
+    Line three of text here now.
+  </p>
   <p>Item A — <a href="/item-a">Read more</a></p>
   <p>Item B — <a href="/item-b">Read more</a></p>
   <form>
@@ -66,9 +71,10 @@ const GOOD_HTML = `<!doctype html>
 <title>Good fixture</title>
 <style>
   body { max-width: 100%; margin: 0; font-size: 1rem; }
-  .skip-link { position: absolute; left: -9999px; }
+  .skip-link { position: absolute; left: -9999px; padding: 8px 12px; min-height: 24px; box-sizing: border-box; }
   .skip-link:focus { left: 8px; }
   button:focus { outline: 3px solid #005fcc; }
+  button, input[type="email"], input[type="text"] { min-height: 24px; padding: 4px 8px; box-sizing: border-box; }
 </style>
 </head>
 <body>
@@ -125,7 +131,8 @@ const WIDGETS_HTML = `<!doctype html>
 <title>Widgets fixture</title>
 <style>
   body { margin: 0; font-size: 1rem; }
-  button { font: inherit; }
+  button { font: inherit; min-height: 24px; padding: 4px 8px; box-sizing: border-box; }
+  [role=menuitem] { display: block; min-height: 24px; padding: 4px 8px; box-sizing: border-box; }
 </style>
 </head>
 <body>
@@ -212,6 +219,10 @@ const SUBTLE_HTML = `<!doctype html>
     <span id="empty-err"></span>
   </form>
   <div class="card"><svg aria-hidden="true"><path d="M0 0"/></svg><div class="card-title">Card With Icon</div></div>
+  <div style="height: 20px; overflow: hidden; width: 300px;" aria-hidden="true">
+    A deliberately cropped decorative caption that already overflows its box
+    before any text-spacing is applied at all.
+  </div>
   <button>Export</button>
   <button>Export</button>
   <h1>Report</h1>
@@ -274,6 +285,8 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     expect(results["nav-current"]?.status).toBe("fail");
     expect(results["visual-headings"]?.status).toBe("warn");
     expect(results["unique-labels"]?.status).toBe("fail");
+    expect(results["text-spacing"]?.status).toBe("fail");
+    expect(results["target-size"]?.status).toBe("fail");
 
     // Spot-check details carry actionable specifics
     expect(results["dialog"]?.details.join("\n")).toContain("aria-modal");
@@ -300,6 +313,10 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     const uniqueLabelsDetails = results["unique-labels"]?.details.join("\n") ?? "";
     expect(uniqueLabelsDetails).toContain("different destinations");
     expect(uniqueLabelsDetails).toContain('"coupon code"');
+    // Fixed-height box clips once WCAG 1.4.12 spacing minimums are applied.
+    expect(results["text-spacing"]?.details.join("\n")).toContain("clips content");
+    // Crowded, undersized menu items / toggle button — spacing exception can't apply.
+    expect(results["target-size"]?.details.join("\n")).toContain("spacing exception doesn't apply");
   }, 120_000);
 
   it("produces no false positives on the good fixture", async () => {
@@ -324,6 +341,8 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
       "nav-current",
       "visual-headings",
       "unique-labels",
+      "text-spacing",
+      "target-size",
     ]) {
       expect(results[name]?.status, `${name}: ${results[name]?.details.join("; ")}`).toBe("pass");
     }
@@ -356,6 +375,10 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     expect(results["visual-headings"]?.status, results["visual-headings"]?.details.join("; ")).toBe("pass");
     // No duplicate link/button/field names on this page.
     expect(results["unique-labels"]?.status, results["unique-labels"]?.details.join("; ")).toBe("pass");
+    // Buttons and menu items are all sized ≥24×24px.
+    expect(results["target-size"]?.status, results["target-size"]?.details.join("; ")).toBe("pass");
+    // No fixed-height text containers on this page.
+    expect(results["text-spacing"]?.status, results["text-spacing"]?.details.join("; ")).toBe("pass");
   }, 120_000);
 
   it("catches secondary failure modes on the subtle fixture", async () => {
@@ -416,6 +439,12 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     // Two "Export" buttons — warn only (vs. bad.html's link/field fail cases).
     expect(results["unique-labels"]?.status).toBe("warn");
     expect(results["unique-labels"]?.details.join("\n")).toContain('"export"');
+    // Isolated undersized buttons — warn only, spacing exception may apply
+    // (vs. bad.html's crowded menu items, which fail outright).
+    expect(results["target-size"]?.status).toBe("warn");
+    // Decorative box already clipped before injection — excluded, not a
+    // false positive from the text-spacing recipe.
+    expect(results["text-spacing"]?.status, results["text-spacing"]?.details.join("; ")).toBe("pass");
   }, 120_000);
 
   it("honors the recipes filter", async () => {

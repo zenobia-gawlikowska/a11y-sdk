@@ -161,6 +161,190 @@ export async function recipeZoom200(page: Page): Promise<RecipeResult> {
   };
 }
 
+/**
+ * 1.4.12 Text Spacing — content must not clip or truncate when a user
+ * stylesheet forces the WCAG minimums (line-height 1.5x, paragraph spacing
+ * 2x, letter-spacing 0.12x, word-spacing 0.16x font-size). axe-core has no
+ * rule for this at all — it requires actually laying the page out under the
+ * new metrics and comparing against a baseline, which only a live browser
+ * can do. Only *newly* clipped/overflowing content counts as a failure;
+ * elements that already clipped non-text content before injection (e.g. a
+ * deliberately cropped decorative image container) are excluded.
+ */
+export async function recipeTextSpacing(page: Page): Promise<RecipeResult> {
+  const wcag = "1.4.12 Text Spacing";
+
+  const before = await page.evaluate(() => {
+    const isVisible = (el: Element) =>
+      (el as HTMLElement).getClientRects().length > 0 &&
+      getComputedStyle(el).visibility !== "hidden";
+    let clippedCount = 0;
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) {
+      if (!isVisible(el)) continue;
+      const cs = getComputedStyle(el);
+      const hidesOverflow = cs.overflowY === "hidden" || cs.overflowY === "clip";
+      if (hidesOverflow && el.scrollHeight > el.clientHeight + 1) {
+        // Mark as pre-existing so the post-injection pass can exclude it —
+        // only *newly* clipped content, caused by the spacing itself, counts.
+        el.setAttribute("data-a11y-behave-pre-clipped", "1");
+        clippedCount++;
+      }
+    }
+    return {
+      docOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      clippedCount,
+    };
+  });
+
+  await page.addStyleTag({
+    content: `
+      * {
+        line-height: 1.5 !important;
+        letter-spacing: 0.12em !important;
+        word-spacing: 0.16em !important;
+      }
+      p {
+        margin-bottom: 2em !important;
+      }
+    `,
+  });
+  await page.waitForTimeout(200);
+
+  const after = await page.evaluate(() => {
+    const isVisible = (el: Element) =>
+      (el as HTMLElement).getClientRects().length > 0 &&
+      getComputedStyle(el).visibility !== "hidden";
+    const newlyClipped: string[] = [];
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) {
+      if (!isVisible(el)) continue;
+      if (el.hasAttribute("data-a11y-behave-pre-clipped")) continue;
+      const cs = getComputedStyle(el);
+      const hidesOverflow = cs.overflowY === "hidden" || cs.overflowY === "clip";
+      if (!hidesOverflow) continue;
+      if (el.scrollHeight <= el.clientHeight + 1) continue;
+      const text = (el.textContent ?? "").trim().slice(0, 50);
+      const id = el.id ? `#${el.id}` : "";
+      newlyClipped.push(
+        `<${el.tagName.toLowerCase()}${id}> "${text}" clips content (${el.scrollHeight}px of content in a ${el.clientHeight}px box) once text-spacing is applied.`,
+      );
+      if (newlyClipped.length >= 12) break;
+    }
+    for (const el of Array.from(document.querySelectorAll("[data-a11y-behave-pre-clipped]"))) {
+      el.removeAttribute("data-a11y-behave-pre-clipped");
+    }
+    return {
+      docOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      newlyClipped,
+    };
+  });
+
+  const details: string[] = [];
+  if (after.docOverflow > before.docOverflow + 1) {
+    details.push(
+      `Horizontal overflow grew from ${before.docOverflow}px to ${after.docOverflow}px once text-spacing is applied — content must reflow, not clip, under WCAG's minimum spacing.`,
+    );
+  }
+  details.push(...after.newlyClipped);
+
+  return {
+    recipe: "text-spacing",
+    wcag,
+    status: details.length > 0 ? "fail" : "pass",
+    details,
+  };
+}
+
+const TARGET_SIZE_SELECTOR =
+  'a[href], button, input:not([type=hidden]):not([type=checkbox]):not([type=radio]), select, textarea, [role=button], [role=link], [role=switch], [role=menuitem], [role=tab]';
+
+/**
+ * 2.5.8 Target Size (Minimum) (WCAG 2.2) — interactive targets should be at
+ * least 24×24 CSS pixels. WCAG carves out real exceptions (inline text
+ * links, adequate spacing from neighboring targets, essential presentation,
+ * user-agent-controlled sizing) that this recipe can only partially verify,
+ * so it splits on confidence: a target that's both undersized *and* sits
+ * close enough to another target that not even the spacing exception could
+ * apply is a `fail`; an undersized-but-isolated target is a `warn`, since
+ * the spacing/essential/inline exceptions need a human look. Native
+ * `input[type=checkbox]`/`[type=radio]` are excluded outright — their
+ * default browser size is the well-established user-agent-control
+ * exception, and flagging every unstyled checkbox on the web would be pure
+ * noise.
+ */
+export async function recipeTargetSize(page: Page): Promise<RecipeResult> {
+  const wcag = "2.5.8 Target Size (Minimum) (WCAG 2.2)";
+
+  const res = await page.evaluate((sel) => {
+    const isVisible = (el: Element) =>
+      (el as HTMLElement).getClientRects().length > 0 &&
+      getComputedStyle(el).visibility !== "hidden";
+    const MIN = 24;
+    const MAX_CANDIDATES = 60;
+
+    const candidates = Array.from(document.querySelectorAll<HTMLElement>(sel))
+      .filter(isVisible)
+      .filter((el) => el.tagName !== "A" || getComputedStyle(el).display !== "inline")
+      .slice(0, MAX_CANDIDATES)
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        const text = (el.textContent ?? el.getAttribute("aria-label") ?? "").trim().slice(0, 40);
+        return { rect: r, desc: `<${el.tagName.toLowerCase()}> "${text}"` };
+      })
+      .filter((c) => c.rect.width > 0 && c.rect.height > 0);
+
+    const failDetails: string[] = [];
+    const warnDetails: string[] = [];
+    for (const c of candidates) {
+      if (c.rect.width >= MIN && c.rect.height >= MIN) continue;
+      const cx = c.rect.left + c.rect.width / 2;
+      const cy = c.rect.top + c.rect.height / 2;
+      const zone = {
+        left: cx - MIN / 2,
+        right: cx + MIN / 2,
+        top: cy - MIN / 2,
+        bottom: cy + MIN / 2,
+      };
+      const crowded = candidates.some((other) => {
+        if (other === c) return false;
+        return !(
+          other.rect.right <= zone.left ||
+          other.rect.left >= zone.right ||
+          other.rect.bottom <= zone.top ||
+          other.rect.top >= zone.bottom
+        );
+      });
+      const sizeDesc = `${Math.round(c.rect.width)}×${Math.round(c.rect.height)}px`;
+      if (crowded) {
+        failDetails.push(
+          `${c.desc}: ${sizeDesc} target is under 24×24px and sits close enough to another target that the spacing exception doesn't apply either — add padding or increase size.`,
+        );
+      } else {
+        warnDetails.push(
+          `${c.desc}: ${sizeDesc} target is under 24×24px — verify it qualifies for an exception (adequate spacing from other targets, inline text link, or essential presentation) before leaving it as-is.`,
+        );
+      }
+    }
+
+    return { failDetails, warnDetails, total: candidates.length };
+  }, TARGET_SIZE_SELECTOR);
+
+  if (res.total === 0) {
+    return {
+      recipe: "target-size",
+      wcag,
+      status: "skipped",
+      details: ["No interactive elements found on the page."],
+    };
+  }
+  if (res.failDetails.length > 0) {
+    return { recipe: "target-size", wcag, status: "fail", details: res.failDetails };
+  }
+  if (res.warnDetails.length > 0) {
+    return { recipe: "target-size", wcag, status: "warn", details: res.warnDetails };
+  }
+  return { recipe: "target-size", wcag, status: "pass", details: [] };
+}
+
 /** 2.4.1 Bypass Blocks — first Tab stop must be an in-page skip link when navigation exists. */
 export async function recipeSkipLink(page: Page): Promise<RecipeResult> {
   const wcag = "2.4.1 Bypass Blocks";
@@ -1687,6 +1871,8 @@ export interface Recipe {
 export const ALL_RECIPES: Recipe[] = [
   { name: "reflow-320", run: recipeReflow320 },
   { name: "zoom-200", run: recipeZoom200 },
+  { name: "text-spacing", run: recipeTextSpacing },
+  { name: "target-size", run: recipeTargetSize },
   { name: "skip-link", run: recipeSkipLink },
   { name: "focus-visible", run: recipeFocusVisible },
   { name: "tab-order", run: recipeTabOrder },
