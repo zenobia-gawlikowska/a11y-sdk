@@ -103,14 +103,41 @@ export const BEST_PRACTICE_RULES = [
   "empty-heading",
 ] as const;
 
+// axe-core tags WCAG 2.1/2.2's *new* success criteria separately from the
+// original WCAG 2.0 wcag2a/wcag2aa/wcag2aaa tags — "wcag2aa" alone never
+// included 1.3.4 Orientation, 1.3.5 Identify Input Purpose (axe:autocomplete-valid),
+// 1.4.12 Text Spacing (axe:avoid-inline-spacing), 2.5.3 Label in Name, or
+// 2.5.8 Target Size. This toolkit's floor is "WCAG 2.1 AA minimum" (README),
+// so the AA scan needs wcag21a/wcag21aa/wcag22aa alongside the WCAG 2.0
+// tags, not just the latter.
+const WCAG_AA_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
+
+// Separately: axe-core silently drops target-size, css-orientation-lock,
+// and label-content-name-mismatch from the run whenever .options({ rules })
+// is used at all (as BEST_PRACTICE_RULES below requires) unless those rules
+// are ALSO explicitly listed in that same object — tag membership alone
+// stops being sufficient once a custom rules map is present. Verified
+// empirically against axe-core 4.11; avoid-inline-spacing and
+// autocomplete-valid don't need this, but listing all five here is cheap
+// insurance against the same quirk resurfacing for either of them.
+const WCAG_21_22_RULES = [
+  "target-size",
+  "css-orientation-lock",
+  "label-content-name-mismatch",
+  "avoid-inline-spacing",
+  "autocomplete-valid",
+] as const;
+
 /** Run the axe-core scan: WCAG-tagged rules for `level`, plus the curated best-practice set above. */
 export async function runAxeScan(page: Page, level: "AA" | "AAA"): Promise<AxeResults> {
   const { AxeBuilder } = await import("@axe-core/playwright");
-  const tags = level === "AAA" ? ["wcag2a", "wcag2aa", "wcag2aaa"] : ["wcag2a", "wcag2aa"];
+  const tags = level === "AAA" ? [...WCAG_AA_TAGS, "wcag2aaa"] : WCAG_AA_TAGS;
   const axeResults = await new AxeBuilder({ page })
     .withTags(tags)
     .options({
-      rules: Object.fromEntries(BEST_PRACTICE_RULES.map((id) => [id, { enabled: true }])),
+      rules: Object.fromEntries(
+        [...BEST_PRACTICE_RULES, ...WCAG_21_22_RULES].map((id) => [id, { enabled: true }]),
+      ),
     })
     .analyze();
   return { violations: axeResults.violations as AxeViolation[] };
