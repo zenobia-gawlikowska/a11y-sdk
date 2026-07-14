@@ -119,6 +119,7 @@ node .a11y/scripts/behave.cjs <url>                 # behavioral recipes
 | `table` | 1.3.1 | Caption/name, `<th>` scope, `aria-sort` actually toggles |
 | `autocomplete` | 1.3.5 | Personal-data inputs carry `autocomplete` |
 | `form-navigation` | 1.3.1 / 3.3.1 / 3.3.2 | *(screen-reader persona)* Every visible control resolves to an accessible name; same-name radio groups sit inside a labelled `<fieldset><legend>`; `aria-invalid="true"` fields carry a real `aria-describedby` |
+| `unique-labels` | 2.4.4 / 2.4.6 / 4.1.2 | Links sharing text must share a destination (`fail`); distinct form fields must not share an accessible name (`fail`); repeated button names are flagged (`warn` — common in card-grid UIs, lower severity) |
 | `live-region-static` | 4.1.3 | No live region nested inside another; no static alert text present at load |
 
 Run all of them, or a subset with `--recipes`:
