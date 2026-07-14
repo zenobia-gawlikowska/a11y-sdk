@@ -24,6 +24,10 @@ export default function GoodApp() {
           See our offers — <a href="/offers">view this week's offers</a>
         </p>
 
+        <p>
+          See our returns policy — <a href="/returns">read our returns policy</a>
+        </p>
+
         <h2>Featured Deals</h2>
 
         <form>
@@ -51,6 +55,15 @@ export default function GoodApp() {
             />
             <p id="email-error">Enter a valid email address</p>
           </div>
+
+          <div>
+            <label htmlFor="coupon">Coupon code</label>
+            <input id="coupon" type="text" />
+          </div>
+          <div>
+            <label htmlFor="gift-card">Gift card code</label>
+            <input id="gift-card" type="text" />
+          </div>
         </form>
 
         <button aria-label="Search" onClick={() => console.log("search")}>
@@ -58,6 +71,13 @@ export default function GoodApp() {
         </button>
 
         <button onClick={() => console.log("add to cart")}>Add to cart</button>
+
+        <button aria-label="Export order history" onClick={() => console.log("export")}>
+          Export
+        </button>
+        <button aria-label="Export wishlist" onClick={() => console.log("export")}>
+          Export
+        </button>
 
         <ul>
           <li>Product A — $10</li>

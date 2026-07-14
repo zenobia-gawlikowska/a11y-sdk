@@ -59,14 +59,17 @@ and wires the pre-commit hook via `git config core.hooksPath .a11y/hooks`.
 | 10 | Large/bold `<div>` styled to look like a heading | 1.3.1 / 2.4.6 | Layer 3 (`behave:visual-headings`, warn-only) |
 | 11 | Radio group with no `<fieldset>`/`<legend>` | 1.3.1 | Layer 3 (`behave:form-navigation`) |
 | 12 | `aria-invalid="true"` with no `aria-describedby` | 3.3.1 | Layer 3 (`behave:form-navigation`) |
-| 13 | `<table>` without `<caption>` / `scope` on `<th>` | 1.3.1 | Layer 3 (`behave:table`, Angular only) |
+| 13 | Two links with the same text pointing to different destinations | 2.4.4 | Layer 3 (`behave:unique-labels`) |
+| 14 | Two distinct form fields sharing an accessible name | 2.4.6 / 4.1.2 | Layer 3 (`behave:unique-labels`) |
+| 15 | Two buttons sharing an accessible name | 4.1.2 | Layer 3 (`behave:unique-labels`, warn-only) |
+| 16 | `<table>` without `<caption>` / `scope` on `<th>` | 1.3.1 | Layer 3 (`behave:table`, Angular only) |
 
 Violations #8–#12 were added alongside the `tab-order`, `nav-current`,
-`regions-headings`, `visual-headings`, and `form-navigation` behave recipes —
-see the root `README.md`'s recipe table for what each one checks. Every one
-of these is fixed on the corresponding good page/route; run `behave.cjs`
-against both (see the Layer 3 quickstart below) to see the fail → pass
-contrast directly.
+`regions-headings`, `visual-headings`, and `form-navigation` behave recipes;
+#13–#15 alongside `unique-labels` — see the root `README.md`'s recipe table
+for what each one checks. Every one of these is fixed on the corresponding
+good page/route; run `behave.cjs` against both (see the Layer 3 quickstart
+below) to see the fail → pass contrast directly.
 
 **Note on Svelte:** Svelte's a11y rules are built into the compiler itself, not a
 separate ESLint plugin. They are surfaced via the `svelte/valid-compile` rule which

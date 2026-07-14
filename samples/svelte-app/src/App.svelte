@@ -16,6 +16,9 @@
   [10] Large/bold <div> styled to look like a heading — behave:visual-headings
   [11] Radio group with no <fieldset>/<legend> — behave:form-navigation
   [12] aria-invalid="true" with no aria-describedby — behave:form-navigation
+  [13] Two links named "click here" pointing to different destinations — behave:unique-labels
+  [14] Two distinct "Discount code" fields — behave:unique-labels
+  [15] Two "Export" buttons — behave:unique-labels (warn-only)
 
   See ../good.html for the corrected version of this same page.
 -->
@@ -28,6 +31,9 @@
 
 <!-- [6] generic link text -->
 <p>See the changelog — <a href="/changelog">click here</a></p>
+
+<!-- [13] same generic text, different destination -->
+<p>See our terms of service — <a href="/terms">click here</a></p>
 
 <!-- [8] nav link to this page with no aria-current -->
 <nav aria-label="Primary">
@@ -68,6 +74,14 @@
   Email
   <input type="email" aria-invalid="true" />
 </label>
+
+<!-- [14] two distinct fields, same accessible name -->
+<label>Discount code <input type="text" /></label>
+<label>Discount code <input type="text" /></label>
+
+<!-- [15] two buttons, same accessible name (warn-only) -->
+<button on:click={onAction}>Export</button>
+<button on:click={onAction}>Export</button>
 
 <ul>
   <li>Update A — released today</li>

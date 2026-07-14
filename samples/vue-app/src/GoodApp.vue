@@ -17,6 +17,8 @@
 
       <p>Sprawdź promocje — <a href="/promocje">zobacz oferty tego tygodnia</a></p>
 
+      <p>Sprawdź regulamin zwrotów — <a href="/zwroty">przeczytaj regulamin zwrotów</a></p>
+
       <h2>Wyróżnione oferty</h2>
 
       <form>
@@ -51,11 +53,27 @@
           </label>
           <p id="promo-code-error">Ten kod wygasł</p>
         </div>
+
+        <div>
+          <label for="coupon">
+            Kod rabatowy
+            <input id="coupon" type="text" />
+          </label>
+        </div>
+        <div>
+          <label for="gift-card">
+            Kod karty podarunkowej
+            <input id="gift-card" type="text" />
+          </label>
+        </div>
       </form>
 
       <button aria-label="Subskrybuj" @click="subscribe">✉️</button>
 
       <button @click="dismiss">Zamknij powiadomienie</button>
+
+      <button aria-label="Eksportuj historię zamówień" @click="dismiss">Eksportuj</button>
+      <button aria-label="Eksportuj listę życzeń" @click="dismiss">Eksportuj</button>
 
       <ul>
         <li>Oferta A — 49 zł</li>
