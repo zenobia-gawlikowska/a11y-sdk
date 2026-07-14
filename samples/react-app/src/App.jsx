@@ -15,6 +15,9 @@
 //   [13] Two links named "click here" pointing to different destinations — behave:unique-labels
 //   [14] Two distinct "Coupon code" fields — behave:unique-labels
 //   [15] Two "Export" buttons — behave:unique-labels (warn-only)
+//   [16] Fixed-height, overflow:hidden text container — clips once WCAG-minimum
+//        text spacing is applied — behave:text-spacing
+//   [17] Two 16×16px icon buttons with no gap between them — behave:target-size
 //
 // See ../good.html for the corrected version of this same page.
 
@@ -94,6 +97,30 @@ export default function App() {
       {/* [15] two buttons, same accessible name (warn-only) */}
       <button onClick={() => console.log("export")}>Export</button>
       <button onClick={() => console.log("export")}>Export</button>
+
+      {/* [16] fixed-height, clipped text container — fits at normal spacing,
+          overflows once WCAG-minimum text spacing (1.5 line-height, 0.12em
+          letter-spacing, 0.16em word-spacing) is applied */}
+      <div style={{ height: "58px", overflow: "hidden", width: "300px", fontSize: "16px" }}>
+        Premium wireless headphones with active noise cancellation and thirty hour battery life.
+      </div>
+
+      {/* [17] two 16x16px icon buttons flush against each other — under the
+          24x24px minimum and crowded, so the spacing exception doesn't apply */}
+      <div style={{ display: "flex", gap: 0 }}>
+        <button
+          style={{ width: "16px", height: "16px", padding: 0, margin: 0 }}
+          onClick={() => console.log("edit")}
+        >
+          ✏️
+        </button>
+        <button
+          style={{ width: "16px", height: "16px", padding: 0, margin: 0 }}
+          onClick={() => console.log("delete")}
+        >
+          🗑️
+        </button>
+      </div>
 
       <ul>
         <li>Product A — $10</li>

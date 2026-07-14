@@ -75,6 +75,19 @@
       <button aria-label="Eksportuj historię zamówień" @click="dismiss">Eksportuj</button>
       <button aria-label="Eksportuj listę życzeń" @click="dismiss">Eksportuj</button>
 
+      <div style="width: 300px; font-size: 16px">
+        Bezprzewodowe słuchawki premium z aktywną redukcją szumów i trzydziestogodzinną baterią.
+      </div>
+
+      <div style="display: flex; gap: 8px">
+        <button style="width: 44px; height: 44px" aria-label="Edytuj" @click="dismiss">
+          ✏️
+        </button>
+        <button style="width: 44px; height: 44px" aria-label="Usuń" @click="dismiss">
+          🗑️
+        </button>
+      </div>
+
       <ul>
         <li>Oferta A — 49 zł</li>
         <li>Oferta B — 99 zł</li>

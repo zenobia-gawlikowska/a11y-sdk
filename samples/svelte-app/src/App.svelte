@@ -19,6 +19,9 @@
   [13] Two links named "click here" pointing to different destinations — behave:unique-labels
   [14] Two distinct "Discount code" fields — behave:unique-labels
   [15] Two "Export" buttons — behave:unique-labels (warn-only)
+  [16] Fixed-height, overflow:hidden text container — clips once WCAG-minimum
+       text spacing is applied — behave:text-spacing
+  [17] Two 16x16px icon buttons with no gap between them — behave:target-size
 
   See ../good.html for the corrected version of this same page.
 -->
@@ -82,6 +85,23 @@
 <!-- [15] two buttons, same accessible name (warn-only) -->
 <button on:click={onAction}>Export</button>
 <button on:click={onAction}>Export</button>
+
+<!-- [16] fixed-height, clipped text container — fits at normal spacing,
+    overflows once WCAG-minimum text spacing is applied -->
+<div style="height: 58px; overflow: hidden; width: 300px; font-size: 16px">
+  Premium wireless headphones with active noise cancellation and thirty hour battery life.
+</div>
+
+<!-- [17] two 16x16px icon buttons flush against each other — under the
+    24x24px minimum and crowded, so the spacing exception doesn't apply -->
+<div style="display: flex; gap: 0">
+  <button style="width: 16px; height: 16px; padding: 0; margin: 0" on:click={onAction}>
+    ✏️
+  </button>
+  <button style="width: 16px; height: 16px; padding: 0; margin: 0" on:click={onAction}>
+    🗑️
+  </button>
+</div>
 
 <ul>
   <li>Update A — released today</li>

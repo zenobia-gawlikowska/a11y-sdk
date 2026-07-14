@@ -79,6 +79,27 @@ export default function GoodApp() {
           Export
         </button>
 
+        <div style={{ width: "300px", fontSize: "16px" }}>
+          Premium wireless headphones with active noise cancellation and thirty hour battery life.
+        </div>
+
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            style={{ width: "44px", height: "44px" }}
+            aria-label="Edit"
+            onClick={() => console.log("edit")}
+          >
+            ✏️
+          </button>
+          <button
+            style={{ width: "44px", height: "44px" }}
+            aria-label="Delete"
+            onClick={() => console.log("delete")}
+          >
+            🗑️
+          </button>
+        </div>
+
         <ul>
           <li>Product A — $10</li>
           <li>Product B — $20</li>

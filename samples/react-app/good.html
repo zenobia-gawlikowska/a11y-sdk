@@ -4,6 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>React Sample (good) — a11y SDK</title>
+    <style>
+      /* Meets WCAG 2.5.8 Target Size (Minimum): every button and text-like
+         input is at least 24x24px, so behave:target-size passes cleanly. */
+      button,
+      input[type="text"],
+      input[type="email"],
+      input[type="search"],
+      nav a,
+      .skip-link {
+        display: inline-block;
+        min-height: 24px;
+        padding: 4px 8px;
+        box-sizing: border-box;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
