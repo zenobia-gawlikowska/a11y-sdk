@@ -1,65 +1,61 @@
-<script>
-  function onAction() {}
-</script>
-
 <!-- A11Y ERRORS INTENTIONAL — used to validate a11y-sdk detection -->
 <!-- Errors present:
-  [1] <html> has no lang attribute (in index.html)
+  [1] N/A here — <html lang> is set correctly in src/index.html, the shared
+      app shell for both routes in this SPA, so it can't differ per-route
+      the way it does in the other three sample apps.
   [2] <img> missing alt
-  [3] <button> with no accessible name (emoji-only, no aria-label)
+  [3] <button> with no accessible name (icon-only, no aria-label)
   [4] <input> with no associated <label> — also caught by behave:form-navigation
   [5] <div> used as interactive element (no role, no keyboard handler)
-  [6] <a> with generic "click here" text
-  [7] Heading hierarchy skips h1 → h3 — also caught by behave:regions-headings (no <h1>, no <main>)
+  [6] <a> with generic "read more" text
+  [7] Heading hierarchy skips h1 → h4 — also caught by behave:regions-headings (no <h1>, no <main>)
   [8] <nav> link to the current page missing aria-current="page" — behave:nav-current
   [9] role="button" element with no tabindex — not Tab-reachable — behave:tab-order
   [10] Large/bold <div> styled to look like a heading — behave:visual-headings
   [11] Radio group with no <fieldset>/<legend> — behave:form-navigation
   [12] aria-invalid="true" with no aria-describedby — behave:form-navigation
+  [missing] table has no <caption> and headers have no scope
 
-  See ../good.html for the corrected version of this same page.
+  See good.component.html for the corrected version of this same page (/good).
 -->
 
-<!-- [7] no h1 or h2 on page -->
-<h3>Latest updates</h3>
+<!-- [7] no h1, h2, or h3 above this -->
+<h4>Dashboard</h4>
 
 <!-- [2] missing alt -->
 <img src="https://placehold.co/200x150" />
 
 <!-- [6] generic link text -->
-<p>See the changelog — <a href="/changelog">click here</a></p>
+<p>See the full report — <a href="/report">read more</a></p>
 
 <!-- [8] nav link to this page with no aria-current -->
 <nav aria-label="Primary">
-  <a href="/">Home</a> <a href="/archive">Archive</a>
+  <a href="/">Dashboard</a> <a href="/reports">Reports</a>
 </nav>
 
 <!-- [10] fake heading — big and bold, but not a real heading element -->
-<div style="font-size: 26px; font-weight: 700">Top Stories</div>
+<div style="font-size: 26px; font-weight: 700">Key Metrics</div>
 
 <!-- [4] input with no label -->
 <div>
-  <input type="search" placeholder="Search…" />
+  <input type="text" placeholder="Filter results…" />
 </div>
 
 <!-- [3] icon button with no accessible name -->
-<button on:click={onAction}>🔔</button>
+<button (click)="onAction()">⚙️</button>
 
-<!-- [5] div acting as button — no role, no keyboard handler -->
-<div
-  style="cursor: pointer; padding: 8px; background: #eee"
-  on:click={onAction}
->
-  Dismiss
+<!-- [5] div acting as a button -->
+<div style="cursor: pointer; padding: 8px; background: #eee" (click)="onAction()">
+  Export data
 </div>
 
 <!-- [9] role="button" with no tabindex — visually a button, not keyboard-reachable -->
-<div role="button" on:click={onAction}>Subscribe</div>
+<div role="button" (click)="onAction()">Refresh</div>
 
 <!-- [11] radio group with no fieldset/legend -->
 <div>
-  <input type="radio" name="frequency" value="daily" /> Daily
-  <input type="radio" name="frequency" value="weekly" /> Weekly
+  <input type="radio" name="range" value="7d" /> 7 days
+  <input type="radio" name="range" value="30d" /> 30 days
 </div>
 
 <!-- [12] aria-invalid with no aria-describedby (label present, so this
@@ -69,7 +65,14 @@
   <input type="email" aria-invalid="true" />
 </label>
 
-<ul>
-  <li>Update A — released today</li>
-  <li>Update B — released yesterday</li>
-</ul>
+<table>
+  <!-- [missing] table has no <caption> and headers have no scope -->
+  <tr>
+    <th>Name</th>
+    <th>Value</th>
+  </tr>
+  <tr>
+    <td>Metric A</td>
+    <td>42</td>
+  </tr>
+</table>

@@ -1,0 +1,69 @@
+// Corrected version of App.jsx — same page, every intentional violation fixed.
+// Serve at /good.html to see the a11y-sdk audit/behave scripts pass cleanly.
+
+export default function GoodApp() {
+  return (
+    <div>
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+
+      <nav aria-label="Primary">
+        <a href="/good.html" aria-current="page">
+          Home
+        </a>{" "}
+        <a href="/catalog">Catalog</a>
+      </nav>
+
+      <main id="main-content">
+        <h1>Welcome to the shop</h1>
+
+        <img src="https://placehold.co/200x150" alt="Wireless headphones on a white background" />
+
+        <p>
+          See our offers — <a href="/offers">view this week's offers</a>
+        </p>
+
+        <h2>Featured Deals</h2>
+
+        <form>
+          <div>
+            <label htmlFor="search">Search products</label>
+            <input id="search" type="text" />
+          </div>
+
+          <fieldset>
+            <legend>Shipping method</legend>
+            <input type="radio" name="shipping" id="ship-standard" value="standard" />
+            <label htmlFor="ship-standard">Standard</label>
+            <input type="radio" name="shipping" id="ship-express" value="express" />
+            <label htmlFor="ship-express">Express</label>
+          </fieldset>
+
+          <div>
+            <label htmlFor="email">Email</label>
+            <input
+              id="email"
+              type="email"
+              autoComplete="email"
+              aria-invalid="true"
+              aria-describedby="email-error"
+            />
+            <p id="email-error">Enter a valid email address</p>
+          </div>
+        </form>
+
+        <button aria-label="Search" onClick={() => console.log("search")}>
+          🔍
+        </button>
+
+        <button onClick={() => console.log("add to cart")}>Add to cart</button>
+
+        <ul>
+          <li>Product A — $10</li>
+          <li>Product B — $20</li>
+        </ul>
+      </main>
+    </div>
+  );
+}

@@ -1087,6 +1087,102 @@ export async function recipeRegionsHeadings(page: Page): Promise<RecipeResult> {
   return { recipe: "regions-headings", wcag, status: "pass", details: [] };
 }
 
+// Chrome/branding landmarks essentially never contain document-content
+// headings (site title wordmarks, nav items) — excluding them from
+// candidacy cuts the single noisiest source of false positives.
+const VISUAL_HEADING_EXCLUDED_ANCESTORS =
+  'header, [role="banner"], nav, [role="navigation"], footer, [role="contentinfo"], button, a, [role="button"], [role="link"], [role="tab"], [role="menuitem"]';
+
+/**
+ * Visually prominent text that isn't marked up as a heading. WCAG can't
+ * tell you whether a given large/bold element is "really" a heading — that
+ * needs a human/LLM read of the page — but the visual-prominence signal
+ * itself (font-size and weight relative to body text) is fully
+ * script-detectable. This recipe narrows the page down to a short,
+ * conservative candidate list instead of guessing: it always `warn`s
+ * (never `fail`s) because the last mile is judgment, not verification.
+ *
+ * Deliberately conservative to keep false positives low: only genuine leaf
+ * text nodes (or text wrapped in nothing but decorative icons) are
+ * considered, real headings and their descendants are skipped, interactive
+ * elements and chrome/branding landmarks are excluded, and short/symbol-only
+ * strings (stat tiles, badges) are filtered by length and letter content.
+ */
+export async function recipeVisualHeadings(page: Page): Promise<RecipeResult> {
+  const wcag = "1.3.1 Info and Relationships / 2.4.6 Headings and Labels";
+
+  const res = await page.evaluate((excludedAncestorSel) => {
+    const isVisible = (el: Element) =>
+      (el as HTMLElement).getClientRects().length > 0 &&
+      getComputedStyle(el).visibility !== "hidden";
+    const isDecorative = (el: Element) =>
+      el.tagName === "SVG" ||
+      el.tagName === "PATH" ||
+      el.getAttribute("aria-hidden") === "true";
+
+    const baseSize = parseFloat(getComputedStyle(document.body).fontSize) || 16;
+    const MAX_CANDIDATES = 30;
+    const MIN_LEN = 3;
+    const MAX_LEN = 120;
+    const HAS_LETTER = /\p{L}/u;
+
+    const candidates: { tag: string; text: string; fontSize: number; bold: boolean; ratio: number }[] = [];
+
+    const walk = (node: Element) => {
+      if (candidates.length >= MAX_CANDIDATES) return;
+      for (const el of Array.from(node.children)) {
+        if (!isVisible(el)) continue;
+        if (el.tagName === "SCRIPT" || el.tagName === "STYLE") continue;
+        if (/^H[1-6]$/.test(el.tagName) || el.getAttribute("role") === "heading") {
+          continue; // already semantic — skip it and everything inside it
+        }
+        if (el.matches(excludedAncestorSel)) continue; // and everything inside it
+        if (el.getAttribute("aria-hidden") === "true") continue;
+
+        const meaningfulChildren = Array.from(el.children).filter((c) => !isDecorative(c));
+        if (meaningfulChildren.length === 0) {
+          const text = (el.textContent ?? "").trim().replace(/\s+/g, " ");
+          if (text.length >= MIN_LEN && text.length <= MAX_LEN && HAS_LETTER.test(text)) {
+            const cs = getComputedStyle(el);
+            const fontSize = parseFloat(cs.fontSize) || 0;
+            const fontWeight = parseFloat(cs.fontWeight) || 400;
+            const bold = fontWeight >= 700;
+            const ratio = fontSize / baseSize;
+            if (ratio >= 1.6 || (bold && ratio >= 1.3)) {
+              candidates.push({
+                tag: el.tagName.toLowerCase(),
+                text: text.slice(0, 60),
+                fontSize: Math.round(fontSize),
+                bold,
+                ratio: Math.round(ratio * 10) / 10,
+              });
+            }
+          }
+        } else {
+          walk(el); // has real structure inside — recurse instead of evaluating it directly
+        }
+      }
+    };
+    walk(document.body);
+
+    return { candidates };
+  }, VISUAL_HEADING_EXCLUDED_ANCESTORS);
+
+  if (res.candidates.length === 0) {
+    return { recipe: "visual-headings", wcag, status: "pass", details: [] };
+  }
+
+  return {
+    recipe: "visual-headings",
+    wcag,
+    status: "warn",
+    details: res.candidates.map(
+      (c) =>
+        `<${c.tag}> "${c.text}" is ${c.ratio}x body text size (${c.fontSize}px${c.bold ? ", bold" : ""}) but isn't marked up as a heading — review whether it should be a real heading element or role="heading".`,
+    ),
+  };
+}
+
 /** Data table contract — caption/name, header cells with scope, aria-sort toggling. */
 export async function recipeTable(page: Page): Promise<RecipeResult> {
   const wcag = "1.3.1 Info and Relationships (tables)";
@@ -1461,6 +1557,7 @@ export const ALL_RECIPES: Recipe[] = [
   { name: "nav-labels", run: recipeNavLabels },
   { name: "nav-current", run: recipeNavCurrent },
   { name: "regions-headings", run: recipeRegionsHeadings },
+  { name: "visual-headings", run: recipeVisualHeadings },
   { name: "table", run: recipeTable },
   { name: "autocomplete", run: recipeAutocomplete },
   { name: "form-navigation", run: recipeFormNavigation },

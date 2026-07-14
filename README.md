@@ -115,6 +115,7 @@ node .a11y/scripts/behave.cjs <url>                 # behavioral recipes
 | `nav-labels` | 1.3.1 | Multiple `<nav>` landmarks have unique accessible names |
 | `nav-current` | 4.1.2 / 2.4.8 (AAA) | *(screen-reader persona)* Any nav link resolving to the current page's URL carries `aria-current="page"`, and only one link per nav claims it |
 | `regions-headings` | 1.3.1 / 2.4.6 | *(screen-reader persona)* Exactly one `<main>`; uniquely-labelled banner/contentinfo/complementary landmarks; a single `<h1>` with no skipped or empty heading levels |
+| `visual-headings` | 1.3.1 / 2.4.6 | Visually prominent text (large/bold relative to body text) not marked up as a heading — `warn`-only, never `fail`; surfaces candidates for a human/LLM read, not a verdict |
 | `table` | 1.3.1 | Caption/name, `<th>` scope, `aria-sort` actually toggles |
 | `autocomplete` | 1.3.5 | Personal-data inputs carry `autocomplete` |
 | `form-navigation` | 1.3.1 / 3.3.1 / 3.3.2 | *(screen-reader persona)* Every visible control resolves to an accessible name; same-name radio groups sit inside a labelled `<fieldset><legend>`; `aria-invalid="true"` fields carry a real `aria-describedby` |

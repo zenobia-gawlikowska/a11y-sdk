@@ -4,10 +4,17 @@
     [1] <html> has no lang attribute (in index.html)
     [2] <img> missing alt
     [3] <button> with no accessible name (emoji-only, no aria-label)
-    [4] <input> with no associated <label>
+    [4] <input> with no associated <label> — also caught by behave:form-navigation
     [5] <div> used as interactive element (no role, no keyboard handler)
     [6] <a> with generic "click here" text
-    [7] Heading hierarchy skips h1 → h3
+    [7] Heading hierarchy skips h1 → h3 — also caught by behave:regions-headings (no <h1>, no <main>)
+    [8] <nav> link to the current page missing aria-current="page" — behave:nav-current
+    [9] role="button" element with no tabindex — not Tab-reachable — behave:tab-order
+    [10] Large/bold <div> styled to look like a heading — behave:visual-headings
+    [11] Radio group with no <fieldset>/<legend> — behave:form-navigation
+    [12] aria-invalid="true" with no aria-describedby — behave:form-navigation
+
+    See ../good.html for the corrected version of this same page.
   -->
   <div>
     <!-- [7] no h1 or h2 on page -->
@@ -18,6 +25,14 @@
 
     <!-- [6] generic link text -->
     <p>Sprawdź promocje — <a href="/promocje">kliknij tutaj</a></p>
+
+    <!-- [8] nav link to this page with no aria-current -->
+    <nav aria-label="Primary">
+      <a href="/">Strona główna</a> <a href="/katalog">Katalog</a>
+    </nav>
+
+    <!-- [10] fake heading — big and bold, but not a real heading element -->
+    <div style="font-size: 26px; font-weight: 700">Wyróżnione oferty</div>
 
     <!-- [4] input with no label -->
     <div>
@@ -34,6 +49,22 @@
     >
       Zamknij powiadomienie
     </div>
+
+    <!-- [9] role="button" with no tabindex — visually a button, not keyboard-reachable -->
+    <div role="button" @click="dismiss">Kup teraz</div>
+
+    <!-- [11] radio group with no fieldset/legend -->
+    <div>
+      <input type="radio" name="dostawa" value="standard" /> Standardowa
+      <input type="radio" name="dostawa" value="ekspres" /> Ekspresowa
+    </div>
+
+    <!-- [12] aria-invalid with no aria-describedby (label present, so this
+        isolates the missing-error-association mistake) -->
+    <label>
+      E-mail
+      <input type="email" aria-invalid="true" />
+    </label>
 
     <ul>
       <li>Oferta A — 49 zł</li>

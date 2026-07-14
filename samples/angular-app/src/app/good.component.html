@@ -1,0 +1,58 @@
+<!-- Corrected version of bad.component.html — same page, every intentional
+     violation fixed (except <html lang>, which is already fixed at the app
+     shell in src/index.html and applies to both routes). Serve at /good to
+     see the a11y-sdk audit/behave scripts pass cleanly. -->
+
+<a href="#main-content" class="skip-link">Skip to main content</a>
+
+<nav aria-label="Primary">
+  <a href="/good" aria-current="page">Dashboard</a>
+  <a href="/reports">Reports</a>
+</nav>
+
+<main id="main-content">
+  <h1>Dashboard</h1>
+
+  <img src="https://placehold.co/200x150" alt="Line chart showing weekly active users trending upward" />
+
+  <p>See the full report — <a href="/report">read the full quarterly report</a></p>
+
+  <h2>Key Metrics</h2>
+
+  <form>
+    <div>
+      <label for="filter">Filter results</label>
+      <input id="filter" type="text" />
+    </div>
+
+    <fieldset>
+      <legend>Date range</legend>
+      <input type="radio" name="range" id="range-7d" value="7d" />
+      <label for="range-7d">7 days</label>
+      <input type="radio" name="range" id="range-30d" value="30d" />
+      <label for="range-30d">30 days</label>
+    </fieldset>
+
+    <div>
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="email" aria-invalid="true" aria-describedby="email-error" />
+      <p id="email-error">Enter a valid email address</p>
+    </div>
+  </form>
+
+  <button aria-label="Settings" (click)="onAction()">⚙️</button>
+
+  <button (click)="onAction()">Export data</button>
+
+  <table>
+    <caption>Metric summary</caption>
+    <tr>
+      <th scope="col">Name</th>
+      <th scope="col">Value</th>
+    </tr>
+    <tr>
+      <td>Metric A</td>
+      <td>42</td>
+    </tr>
+  </table>
+</main>

@@ -27,12 +27,14 @@ const BAD_HTML = `<!doctype html>
   .wide { width: 1000px; background: #eee; }
   button { outline: none; border: 1px solid #888; background: #eee; }
   #dlg { position: fixed; top: 20px; left: 20px; background: #fff; border: 1px solid #000; padding: 8px; }
+  .fake-heading { font-size: 26px; font-weight: 700; }
 </style>
 </head>
 <body>
 <nav><a href="/one">One</a> <a href="/two">Two</a> <a href="bad.html">Home</a></nav>
 <nav><a href="/three">Three</a></nav>
 <main>
+  <div class="fake-heading">Section Overview</div>
   <div class="wide" tabindex="3">wide content</div>
   <div role="button" class="fake-btn">Fake button</div>
   <button id="toggle" aria-expanded="false" aria-controls="missing-id">Menu</button>
@@ -178,7 +180,10 @@ const SUBTLE_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>Subtle fixture</title>
-<style>body { margin: 0; font-size: 14px; }</style>
+<style>
+  body { margin: 0; font-size: 14px; }
+  .card-title { font-size: 24px; font-weight: 700; }
+</style>
 </head>
 <body>
 <a href="#nowhere">Skip to content</a>
@@ -202,6 +207,7 @@ const SUBTLE_HTML = `<!doctype html>
     <input id="promo" type="text" aria-invalid="true" aria-describedby="empty-err">
     <span id="empty-err"></span>
   </form>
+  <div class="card"><svg aria-hidden="true"><path d="M0 0"/></svg><div class="card-title">Card With Icon</div></div>
   <h1>Report</h1>
   <h3 id="s1">Section</h3>
 </main>
@@ -260,6 +266,7 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     expect(results["regions-headings"]?.status).toBe("fail");
     expect(results["form-navigation"]?.status).toBe("fail");
     expect(results["nav-current"]?.status).toBe("fail");
+    expect(results["visual-headings"]?.status).toBe("warn");
 
     // Spot-check details carry actionable specifics
     expect(results["dialog"]?.details.join("\n")).toContain("aria-modal");
@@ -279,6 +286,9 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     expect(formNavDetails).toContain("no aria-describedby");
     // Nav link to the current page missing aria-current="page".
     expect(results["nav-current"]?.details.join("\n")).toContain('missing aria-current="page"');
+    // Large bold div doing a heading's job without the markup — warn only,
+    // never fail, since "is this really a heading" needs judgment.
+    expect(results["visual-headings"]?.details.join("\n")).toContain("Section Overview");
   }, 120_000);
 
   it("produces no false positives on the good fixture", async () => {
@@ -301,6 +311,7 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
       "regions-headings",
       "form-navigation",
       "nav-current",
+      "visual-headings",
     ]) {
       expect(results[name]?.status, `${name}: ${results[name]?.details.join("; ")}`).toBe("pass");
     }
@@ -328,6 +339,9 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     expect(results["form-navigation"]?.status).toBe("skipped");
     // No nav on the page.
     expect(results["nav-current"]?.status).toBe("skipped");
+    // Widget labels ("Settings", "Item A"/"B"/"C") aren't styled to look
+    // like headings — no false positive from a well-built widget.
+    expect(results["visual-headings"]?.status, results["visual-headings"]?.details.join("; ")).toBe("pass");
   }, 120_000);
 
   it("catches secondary failure modes on the subtle fixture", async () => {
@@ -377,6 +391,10 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     expect(results["nav-current"]?.details.join("\n")).toContain(
       'carry aria-current="page"',
     );
+    // Icon+text card title (vs. bad.html's plain fake-heading div) — the
+    // decorative-icon-child allowance must still catch this leaf pattern.
+    expect(results["visual-headings"]?.status).toBe("warn");
+    expect(results["visual-headings"]?.details.join("\n")).toContain("Card With Icon");
     // Sanity: things done right here stay green.
     expect(results["reflow-320"]?.status).toBe("pass");
     expect(results["focus-visible"]?.status).toBe("pass");
