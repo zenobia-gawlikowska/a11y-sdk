@@ -33,14 +33,20 @@ const BAD_HTML = `<!doctype html>
 <nav><a href="/one">One</a> <a href="/two">Two</a></nav>
 <nav><a href="/three">Three</a></nav>
 <main>
-  <div class="wide">wide content</div>
+  <div class="wide" tabindex="3">wide content</div>
+  <div role="button" class="fake-btn">Fake button</div>
   <button id="toggle" aria-expanded="false" aria-controls="missing-id">Menu</button>
   <div role="menu" id="menu">
     <div role="menuitem" tabindex="0">Item A</div>
     <div role="menuitem" tabindex="-1">Item B</div>
   </div>
   <table><tr><td>1</td><td>2</td></tr></table>
-  <form><input type="email" name="email"></form>
+  <form>
+    <input type="email" name="email">
+    <input type="radio" name="plan" value="a"> Basic
+    <input type="radio" name="plan" value="b"> Pro
+    <input type="text" id="bad-invalid" aria-invalid="true">
+  </form>
   <div id="dlg" role="dialog">A dialog with no aria-modal and no name <button id="dlg-btn">OK</button></div>
   <div aria-live="polite"><div role="status">saved</div></div>
 </main>
@@ -64,6 +70,7 @@ const GOOD_HTML = `<!doctype html>
 <nav aria-label="Main"><a href="#s1">Section 1</a></nav>
 <nav aria-label="Footer"><a href="#s1">Legal</a></nav>
 <main id="main">
+  <h1>Good fixture</h1>
   <button id="acc" aria-expanded="false" aria-controls="panel">Details</button>
   <div id="panel" hidden>Panel content</div>
   <table>
@@ -74,6 +81,14 @@ const GOOD_HTML = `<!doctype html>
   <form>
     <label for="em">Email</label>
     <input id="em" type="email" name="email" autocomplete="email">
+    <fieldset>
+      <legend>Preferred plan</legend>
+      <input type="radio" name="plan" id="plan-a" value="a"><label for="plan-a">Basic</label>
+      <input type="radio" name="plan" id="plan-b" value="b"><label for="plan-b">Pro</label>
+    </fieldset>
+    <label for="promo">Promo code</label>
+    <input id="promo" type="text" aria-invalid="true" aria-describedby="promo-err">
+    <span id="promo-err">This code has expired</span>
   </form>
   <div role="status" id="status-region"></div>
   <h2 id="s1">Section 1</h2>
@@ -182,7 +197,13 @@ const SUBTLE_HTML = `<!doctype html>
     <tbody><tr><td>a</td><td>1</td></tr></tbody>
   </table>
   <div role="alert">Welcome to the app!</div>
-  <h2 id="s1">Section</h2>
+  <form>
+    <label for="promo">Promo code</label>
+    <input id="promo" type="text" aria-invalid="true" aria-describedby="empty-err">
+    <span id="empty-err"></span>
+  </form>
+  <h1>Report</h1>
+  <h3 id="s1">Section</h3>
 </main>
 <script>
   var dlg = document.getElementById('dlg');
@@ -235,12 +256,26 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     expect(results["table"]?.status).toBe("fail");
     expect(results["live-region-static"]?.status).toBe("fail");
     expect(results["autocomplete"]?.status).toBe("warn");
+    expect(results["tab-order"]?.status).toBe("fail");
+    expect(results["regions-headings"]?.status).toBe("fail");
+    expect(results["form-navigation"]?.status).toBe("fail");
 
     // Spot-check details carry actionable specifics
     expect(results["dialog"]?.details.join("\n")).toContain("aria-modal");
     expect(results["dialog"]?.details.join("\n")).toContain("Escape");
     expect(results["disclosure"]?.details.join("\n")).toContain("did not toggle");
     expect(results["focus-visible"]?.details.join("\n")).toContain("#toggle");
+    // Keyboard-user persona: positive tabindex and an unfocusable role="button".
+    const tabOrderDetails = results["tab-order"]?.details.join("\n") ?? "";
+    expect(tabOrderDetails).toContain('tabindex="3"');
+    expect(tabOrderDetails).toContain("not keyboard-focusable");
+    // Screen-reader persona: no <h1> for heading navigation.
+    expect(results["regions-headings"]?.details.join("\n")).toContain("No <h1>");
+    // Screen-reader persona: unnamed control + ungrouped radios + orphaned error.
+    const formNavDetails = results["form-navigation"]?.details.join("\n") ?? "";
+    expect(formNavDetails).toContain("has no accessible name");
+    expect(formNavDetails).toContain("is not wrapped in a labelled <fieldset><legend>");
+    expect(formNavDetails).toContain("no aria-describedby");
   }, 120_000);
 
   it("produces no false positives on the good fixture", async () => {
@@ -259,6 +294,9 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
       "table",
       "autocomplete",
       "live-region-static",
+      "tab-order",
+      "regions-headings",
+      "form-navigation",
     ]) {
       expect(results[name]?.status, `${name}: ${results[name]?.details.join("; ")}`).toBe("pass");
     }
@@ -279,6 +317,11 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     expect(results["zoom-200"]?.status).toBe("pass");
     // No nav on the page → skip link not required.
     expect(results["skip-link"]?.status).toBe("skipped");
+    // Roving-tabindex menu items (tabindex="-1" siblings) must not be flagged
+    // as unreachable — they're reachable via arrow keys inside the widget.
+    expect(results["tab-order"]?.status, results["tab-order"]?.details.join("; ")).toBe("pass");
+    // No form controls on this page.
+    expect(results["form-navigation"]?.status).toBe("skipped");
   }, 120_000);
 
   it("catches secondary failure modes on the subtle fixture", async () => {
@@ -311,9 +354,21 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     expect(results["zoom-200"]?.status).toBe("warn");
     // Static alert text at load (warn branch, vs. bad.html's nested fail).
     expect(results["live-region-static"]?.status).toBe("warn");
+    // Heading level skips from h1 straight to h3 (vs. bad.html's missing h1).
+    expect(results["regions-headings"]?.status).toBe("fail");
+    expect(results["regions-headings"]?.details.join("\n")).toContain(
+      "jumps from h1 to h3",
+    );
+    // aria-describedby points at an id that exists but is empty (vs.
+    // bad.html's completely absent aria-describedby).
+    expect(results["form-navigation"]?.status).toBe("fail");
+    expect(results["form-navigation"]?.details.join("\n")).toContain(
+      "missing or empty",
+    );
     // Sanity: things done right here stay green.
     expect(results["reflow-320"]?.status).toBe("pass");
     expect(results["focus-visible"]?.status).toBe("pass");
+    expect(results["tab-order"]?.status, results["tab-order"]?.details.join("; ")).toBe("pass");
   }, 120_000);
 
   it("honors the recipes filter", async () => {

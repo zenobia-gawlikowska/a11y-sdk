@@ -96,12 +96,36 @@ Ask your AI: *"audit the dashboard at localhost:3000/dashboard"* — it will run
 node .a11y/scripts/audit.cjs <url>                  # axe-core static scan
 node .a11y/scripts/audit.cjs <url> --level AAA
 node .a11y/scripts/behave.cjs <url>                 # behavioral recipes
-node .a11y/scripts/behave.cjs <url> --recipes dialog,focus-visible
 ```
 
 `audit.cjs` runs the axe-core scan; results are grouped by WCAG criterion, ordered by impact (`critical → serious → moderate → minor`), and written to `.a11y/audit-results.json`.
 
-`behave.cjs` runs deterministic *behavioral* recipes that axe can't check — focus trapping and Escape handling in modals, visible focus indicators, reflow at 320px, 200%-zoom overflow, skip links, `aria-expanded` toggles that actually toggle, the `role="menu"` arrow-key contract, unique nav labels, table captions/scope/`aria-sort`, `autocomplete` on personal-data inputs, and live-region structure. Results go to `.a11y/behave-results.json`. If a modal needs a specific control to open it, pass `--dialog-trigger "<css selector>"`.
+`behave.cjs` runs deterministic *behavioral* recipes that axe can't check — it drives a real page with Playwright and observes what happens. Two recipes are organized around assistive-technology personas rather than a single component: `tab-order` audits the page the way a keyboard-only user would, and `regions-headings` / `form-navigation` audit it the way a screen reader user's rotor and forms modes would.
+
+| Recipe | WCAG | What it checks |
+|---|---|---|
+| `reflow-320` | 1.4.10 | No horizontal scroll at a 320px viewport |
+| `zoom-200` | 1.4.4 | No horizontal scroll at 200%-zoom-equivalent width; text responds to root font-size scaling |
+| `skip-link` | 2.4.1 | First Tab stop is a working skip link when a nav landmark exists |
+| `focus-visible` | 2.4.7 | Every Tab stop has a visible focus indicator (computed style changes on focus) |
+| `tab-order` | 2.1.1 / 2.4.3 | *(keyboard-user persona)* Every ARIA-interactive element is Tab-reachable (composite-widget roving-tabindex items excepted); no positive `tabindex`; Shift+Tab retraces the Tab sequence exactly |
+| `dialog` | 2.1.2 / 4.1.2 | `aria-modal`, accessible name, focus trap, Escape-to-close, focus restore on close |
+| `disclosure` | 4.1.2 | `aria-expanded` toggles actually toggle on activation; `aria-controls` resolves |
+| `menu-keyboard` | 2.1.1 | `role="menu"` implements the arrow-key contract it promises |
+| `nav-labels` | 1.3.1 | Multiple `<nav>` landmarks have unique accessible names |
+| `regions-headings` | 1.3.1 / 2.4.6 | *(screen-reader persona)* Exactly one `<main>`; uniquely-labelled banner/contentinfo/complementary landmarks; a single `<h1>` with no skipped or empty heading levels |
+| `table` | 1.3.1 | Caption/name, `<th>` scope, `aria-sort` actually toggles |
+| `autocomplete` | 1.3.5 | Personal-data inputs carry `autocomplete` |
+| `form-navigation` | 1.3.1 / 3.3.1 / 3.3.2 | *(screen-reader persona)* Every visible control resolves to an accessible name; same-name radio groups sit inside a labelled `<fieldset><legend>`; `aria-invalid="true"` fields carry a real `aria-describedby` |
+| `live-region-static` | 4.1.3 | No live region nested inside another; no static alert text present at load |
+
+Run all of them, or a subset with `--recipes`:
+```bash
+node .a11y/scripts/behave.cjs <url> --recipes dialog,focus-visible
+node .a11y/scripts/behave.cjs <url> --recipes tab-order,regions-headings,form-navigation
+```
+
+Results go to `.a11y/behave-results.json`. If a modal needs a specific control to open it, pass `--dialog-trigger "<css selector>"`.
 
 The enforcement split — which rule is owned by which deterministic layer, and what remains genuine judgment — is captured in `.a11y/rules/registry.json` and summarized in `context.md`'s Enforcement Map, so AI assistants orchestrate the scripts instead of re-deriving script-owned rules by reasoning.
 

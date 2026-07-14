@@ -19,7 +19,7 @@
       "id": "1.3.1",
       "title": "Info and Relationships",
       "enforcement": ["lint", "axe", "behave", "llm"],
-      "checkers": ["lint:label-has-associated-control", "axe:label", "axe:heading-order", "axe:aria-required-children", "axe:aria-required-parent", "behave:nav-labels", "behave:table"],
+      "checkers": ["lint:label-has-associated-control", "axe:label", "axe:heading-order", "axe:aria-required-children", "axe:aria-required-parent", "behave:nav-labels", "behave:table", "behave:regions-headings", "behave:form-navigation"],
       "llmJudgment": "Do the chosen semantics actually match the visual structure?"
     },
     {
@@ -82,15 +82,15 @@
       "id": "2.1.1",
       "title": "Keyboard",
       "enforcement": ["lint", "behave", "llm"],
-      "checkers": ["lint:click-events-have-key-events", "lint:mouse-events-have-key-events", "lint:interactive-supports-focus", "lint:no-static-element-interactions", "behave:menu-keyboard"],
-      "llmJudgment": "Is every mouse-available action of a custom widget genuinely operable by keyboard?"
+      "checkers": ["lint:click-events-have-key-events", "lint:mouse-events-have-key-events", "lint:interactive-supports-focus", "lint:no-static-element-interactions", "behave:menu-keyboard", "behave:tab-order"],
+      "llmJudgment": "Is every mouse-available action of a custom widget genuinely operable by keyboard? (Reachability of ARIA-interactive elements and Tab/Shift+Tab symmetry are now script-verified.)"
     },
     {
       "id": "2.1.2",
       "title": "No Keyboard Trap",
       "enforcement": ["behave", "llm"],
-      "checkers": ["behave:dialog"],
-      "llmJudgment": "Traps outside dialogs (e.g. embedded widgets) need manual keyboard testing."
+      "checkers": ["behave:dialog", "behave:tab-order"],
+      "llmJudgment": "Traps outside dialogs that don't manifest as forward/backward asymmetry (e.g. embedded third-party widgets) need manual keyboard testing."
     },
     {
       "id": "2.4.1",
@@ -102,9 +102,9 @@
     {
       "id": "2.4.3",
       "title": "Focus Order",
-      "enforcement": ["lint", "llm"],
-      "checkers": ["lint:tabindex-no-positive"],
-      "llmJudgment": "Is the resulting Tab order logical and meaning-preserving?"
+      "enforcement": ["lint", "behave", "llm"],
+      "checkers": ["lint:tabindex-no-positive", "behave:tab-order"],
+      "llmJudgment": "behave verifies structural symmetry (Tab retraces Shift+Tab) and flags positive tabindex; whether the resulting order is meaning-preserving for the visual layout is still judgment."
     },
     {
       "id": "2.4.4",
@@ -116,9 +116,9 @@
     {
       "id": "2.4.6",
       "title": "Headings and Labels",
-      "enforcement": ["lint", "llm"],
-      "checkers": ["lint:heading-has-content"],
-      "llmJudgment": "Do headings describe the content that follows? Do labels describe the input's purpose?"
+      "enforcement": ["lint", "behave", "llm"],
+      "checkers": ["lint:heading-has-content", "behave:regions-headings"],
+      "llmJudgment": "Do headings describe the content that follows? Do labels describe the input's purpose? (Presence of an h1, empty headings, and skipped levels are now script-verified.)"
     },
     {
       "id": "2.4.7",
@@ -165,16 +165,16 @@
     {
       "id": "3.3.1",
       "title": "Error Identification",
-      "enforcement": ["llm"],
-      "checkers": [],
-      "llmJudgment": "On real validation failure: is the error described in text, connected via aria-describedby, with aria-invalid set? Requires triggering app-specific validation."
+      "enforcement": ["behave", "llm"],
+      "checkers": ["behave:form-navigation"],
+      "llmJudgment": "behave verifies aria-invalid=\"true\" pairs with a real, non-empty aria-describedby once the field is in an error state; whether the error TEXT accurately describes the problem, and whether validation is triggered app-appropriately, remain judgment."
     },
     {
       "id": "3.3.2",
       "title": "Labels or Instructions",
-      "enforcement": ["lint", "axe", "llm"],
-      "checkers": ["lint:label-has-associated-control", "lint:form-control-has-label", "axe:label", "axe:select-name"],
-      "llmJudgment": "Is the label text a useful description of the input's purpose?"
+      "enforcement": ["lint", "axe", "behave", "llm"],
+      "checkers": ["lint:label-has-associated-control", "lint:form-control-has-label", "axe:label", "axe:select-name", "behave:form-navigation"],
+      "llmJudgment": "Is the label text a useful description of the input's purpose? (Presence of an accessible name and fieldset/legend grouping for radio groups are now script-verified.)"
     },
     {
       "id": "4.1.1",
@@ -208,8 +208,8 @@
     {
       "id": "form",
       "enforcement": ["lint", "axe", "behave", "llm"],
-      "checkers": ["lint:label-has-associated-control", "lint:a11y-sdk/autocomplete-required", "axe:label", "behave:autocomplete"],
-      "llmJudgment": "Error-state wiring on real validation; fieldset/legend grouping appropriateness."
+      "checkers": ["lint:label-has-associated-control", "lint:a11y-sdk/autocomplete-required", "axe:label", "behave:autocomplete", "behave:form-navigation"],
+      "llmJudgment": "Whether the error TEXT content accurately explains the problem; grouping strategies beyond simple same-name radio groups (e.g. checkbox groups, multi-field address blocks) still need a human read."
     },
     {
       "id": "data-table",

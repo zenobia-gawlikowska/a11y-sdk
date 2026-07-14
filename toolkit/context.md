@@ -27,7 +27,7 @@ findings. The machine-readable version of this map is `.a11y/rules/registry.json
 | Criterion | Deterministic checker(s) | Remaining judgment |
 |---|---|---|
 | 1.1.1 Non-text Content | lint + axe | alt text meaningful? decorative correctly hidden? |
-| 1.3.1 Info and Relationships | lint + axe + behave `nav-labels`, `table` | semantics match visual structure |
+| 1.3.1 Info and Relationships | lint + axe + behave `nav-labels`, `table`, `regions-headings`, `form-navigation` | semantics match visual structure |
 | 1.3.2 Meaningful Sequence | — | DOM order vs. reading order |
 | 1.3.5 Identify Input Purpose | lint (token validity; missing autocomplete on personal-data inputs) + behave `autocomplete` | correct token choice |
 | 1.4.1 Use of Color | — | color-only signalling |
@@ -36,20 +36,20 @@ findings. The machine-readable version of this map is `.a11y/rules/registry.json
 | 1.4.10 Reflow | behave `reflow-320` | — |
 | 1.4.11 Non-text Contrast | — | component & focus-ring contrast |
 | 1.4.13 Content on Hover/Focus | — | tooltip behavior |
-| 2.1.1 Keyboard | lint + behave `menu-keyboard` | full operability of custom widgets |
-| 2.1.2 No Keyboard Trap | behave `dialog` | traps outside dialogs |
+| 2.1.1 Keyboard | lint + behave `menu-keyboard`, `tab-order` | full operability of custom widgets |
+| 2.1.2 No Keyboard Trap | behave `dialog`, `tab-order` | traps that don't manifest as forward/backward asymmetry |
 | 2.4.1 Bypass Blocks | axe + behave `skip-link` | — |
-| 2.4.3 Focus Order | lint (`tabindex-no-positive`) | logical order |
+| 2.4.3 Focus Order | lint (`tabindex-no-positive`) + behave `tab-order` (reachability, positive tabindex, Tab/Shift+Tab symmetry) | is the order meaning-preserving for the visual layout |
 | 2.4.4 Link Purpose | lint + axe | text describes destination |
-| 2.4.6 Headings and Labels | lint | descriptive quality |
+| 2.4.6 Headings and Labels | lint + behave `regions-headings` (h1 presence, empty headings, skipped levels) | descriptive quality |
 | 2.4.7 Focus Visible | behave `focus-visible` | — |
 | 2.4.11 Focus Appearance | behave `focus-visible` (presence only) | 2px perimeter / 3:1 contrast |
 | 2.5.3 Label in Name | axe | — |
 | 3.1.1 Language of Page | lint + axe | correct language code |
 | 3.2.1 On Focus | lint (`no-autofocus`) | unexpected context changes |
 | 3.2.2 On Input | lint (Vue) | auto-submit behavior |
-| 3.3.1 Error Identification | — | error wiring on real validation |
-| 3.3.2 Labels or Instructions | lint + axe | label describes purpose |
+| 3.3.1 Error Identification | behave `form-navigation` (aria-invalid/aria-describedby pairing) | does the error text accurately describe the problem; is validation triggered app-appropriately |
+| 3.3.2 Labels or Instructions | lint + axe + behave `form-navigation` (accessible name, radio-group fieldset/legend) | label describes purpose |
 | 4.1.1 Parsing | axe | — |
 | 4.1.2 Name, Role, Value | lint (incl. dialog & aria-expanded contracts) + axe + behave `disclosure`, `dialog` | state completeness of custom widgets |
 | 4.1.3 Status Messages | behave `live-region-static` (partial) | role choice; injection timing |
@@ -183,6 +183,33 @@ for non-critical messages.
 Detailed rules for components that require specific ARIA contracts. See
 `rules/` for deep-dive docs on each pattern.
 
+### Keyboard Navigation (Tab Stops)
+
+**Required behavior:**
+- Every interactive element (native or `role="button"`/`"link"`/`"checkbox"`/
+  `"radio"`/`"switch"`/`"menuitem"`/`"tab"`/`"option"`) must be reachable by
+  Tab, unless it's a roving-tabindex item inside a composite widget
+  (`role="menu"`, `"tablist"`, `"listbox"`, `"radiogroup"`, `"tree"`,
+  `"grid"`) where arrow keys — not Tab — move focus between siblings
+- Never use `tabindex` greater than `0` — it creates a separate tab order
+  disconnected from the DOM; reorder the DOM instead
+- Shift+Tab must retrace the exact reverse of the forward Tab sequence; a
+  custom `keydown` handler that intercepts Tab in only one direction is a
+  keyboard trap even outside a dialog
+
+**Implementation pointer:** see `rules/keyboard-nav.md` for the Tab model vs.
+arrow-key (roving tabindex) model, and the menu/listbox/tablist keyboard
+contracts.
+
+**Deterministic check:** `node .a11y/scripts/behave.cjs <url> --recipes tab-order`
+walks the page as a keyboard-only user: it fails on positive tabindex,
+ARIA-interactive elements outside composite widgets that aren't
+Tab-focusable, and any mismatch between the forward Tab sequence and its
+Shift+Tab retrace. Whether the resulting order is meaning-preserving for the
+visual layout remains a judgment check.
+
+---
+
 ### Modal / Dialog
 
 **Required ARIA:**
@@ -239,7 +266,14 @@ time.
 **Deterministic check:** labels are covered by the pre-commit lint and
 `audit.cjs`; personal-data inputs missing `autocomplete` are flagged both by
 the pre-commit hook (statically) and `behave.cjs --recipes autocomplete`
-(rendered). Error-state wiring on real validation remains a judgment check.
+(rendered). `behave.cjs --recipes form-navigation` walks the form the way a
+screen reader user's forms mode would: every visible control must resolve to
+a non-empty accessible name, radio groups sharing a `name` must sit inside a
+labelled `<fieldset><legend>` (or a named `role="radiogroup"`), and any field
+carrying `aria-invalid="true"` must have `aria-describedby` pointing at real,
+non-empty text. Whether the error TEXT accurately explains the problem, and
+grouping strategies beyond same-name radio groups (checkbox groups,
+multi-field address blocks), remain judgment checks.
 
 ---
 
@@ -289,6 +323,30 @@ activation.
 verifies unique nav labels, that `aria-expanded` toggles actually toggle (and
 `aria-controls` resolves), and that `role="menu"` implements the arrow-key
 contract it promises.
+
+---
+
+### Page Structure (Landmarks & Headings)
+
+**Required structure:**
+- Exactly one `<main>` (or `role="main"`) per page — the primary jump target
+  for screen reader region navigation
+- If more than one `<header>`/`role="banner"`, `<footer>`/`role="contentinfo"`,
+  or `<aside>`/`role="complementary"` exists, each needs a unique accessible
+  name
+- Exactly one `<h1>` per page; heading levels never skip (`h2` cannot jump
+  straight to `h4`); no heading is empty
+
+**Implementation pointer:** see `rules/landmark-usage.md`.
+
+**Deterministic check:** `behave.cjs --recipes regions-headings` walks the
+page the way a screen reader user's rotor (regions/headings navigation)
+would: it fails on zero or multiple `<main>` landmarks, unnamed/duplicate
+banner-contentinfo-complementary landmarks when more than one exists, a
+missing `<h1>`, skipped heading levels, and empty headings — and warns when
+visible content sits outside every landmark (a heuristic with legitimate
+exceptions, so it doesn't block). Whether the chosen HTML semantics actually
+match the visual structure remains a judgment check.
 
 ---
 
@@ -354,10 +412,19 @@ node .a11y/scripts/behave.cjs <url> --dialog-trigger "#open-settings"
 ```
 
 Behavioral recipes: `reflow-320`, `zoom-200`, `skip-link`, `focus-visible`,
-`dialog`, `disclosure`, `menu-keyboard`, `nav-labels`, `table`,
-`autocomplete`, `live-region-static`. All run by default; `--recipes` selects
-a subset. Each recipe reloads the page, so they cannot interfere with each
-other.
+`tab-order`, `dialog`, `disclosure`, `menu-keyboard`, `nav-labels`,
+`regions-headings`, `table`, `autocomplete`, `form-navigation`,
+`live-region-static`. All run by default; `--recipes` selects a subset. Each
+recipe reloads the page, so they cannot interfere with each other.
+
+Two recipes are organized around assistive-technology personas rather than a
+single component: `tab-order` walks the page the way a sighted keyboard-only
+user would (every ARIA-interactive element reachable by Tab, no positive
+tabindex, Shift+Tab retraces Tab exactly); `regions-headings` and
+`form-navigation` walk it the way a screen reader user's rotor/forms mode
+would (one `<main>`, uniquely-labelled banner/contentinfo/complementary
+landmarks, a sane heading hierarchy, every control named, radio groups
+grouped, error states wired with aria-describedby).
 
 **Step-by-step:**
 1. Ask the developer: "What URL is the component available at?" (if not stated)

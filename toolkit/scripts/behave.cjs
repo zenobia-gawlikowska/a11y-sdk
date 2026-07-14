@@ -38,11 +38,14 @@ __export(behave_exports, {
   recipeDialog: () => recipeDialog,
   recipeDisclosure: () => recipeDisclosure,
   recipeFocusVisible: () => recipeFocusVisible,
+  recipeFormNavigation: () => recipeFormNavigation,
   recipeLiveRegionStatic: () => recipeLiveRegionStatic,
   recipeMenuKeyboard: () => recipeMenuKeyboard,
   recipeNavLabels: () => recipeNavLabels,
   recipeReflow320: () => recipeReflow320,
+  recipeRegionsHeadings: () => recipeRegionsHeadings,
   recipeSkipLink: () => recipeSkipLink,
+  recipeTabOrder: () => recipeTabOrder,
   recipeTable: () => recipeTable,
   recipeZoom200: () => recipeZoom200,
   runRecipes: () => runRecipes
@@ -264,6 +267,91 @@ async function recipeFocusVisible(page) {
     details: offenders.map(
       (o) => `${o.desc}: no computed style change between focused and unfocused states \u2014 the focus indicator is missing (outline removed without replacement?).`
     )
+  };
+}
+var INTERACTIVE_ROLE_SELECTOR = "[role=button],[role=link],[role=checkbox],[role=radio],[role=switch],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=tab],[role=option]";
+var COMPOSITE_CONTAINER_SELECTOR = "[role=menu],[role=menubar],[role=tablist],[role=listbox],[role=radiogroup],[role=tree],[role=treegrid],[role=grid]";
+async function recipeTabOrder(page) {
+  const wcag = "2.1.1 Keyboard / 2.4.3 Focus Order";
+  const details = [];
+  const statics = await page.evaluate(
+    ({ roleSel, compositeSel }) => {
+      const isVisible = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
+      const describe = (el) => {
+        const id = el.id ? `#${el.id}` : "";
+        const text = (el.textContent ?? el.getAttribute("aria-label") ?? "").trim().slice(0, 40);
+        return `<${el.tagName.toLowerCase()}${id} role="${el.getAttribute("role")}"> "${text}"`;
+      };
+      const positiveTabindex = Array.from(
+        document.querySelectorAll("[tabindex]")
+      ).filter((el) => isVisible(el) && Number(el.getAttribute("tabindex")) > 0).map(
+        (el) => `<${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}> tabindex="${el.getAttribute("tabindex")}" \u2014 positive tabindex creates a separate tab order; reorder the DOM instead.`
+      );
+      const unreachable = Array.from(
+        document.querySelectorAll(roleSel)
+      ).filter(
+        (el) => isVisible(el) && !el.closest(compositeSel) && el.tabIndex < 0
+      ).map(
+        (el) => `${describe(el)} is not keyboard-focusable (add tabindex="0" or use a native interactive element).`
+      );
+      return { positiveTabindex, unreachable };
+    },
+    { roleSel: INTERACTIVE_ROLE_SELECTOR, compositeSel: COMPOSITE_CONTAINER_SELECTOR }
+  );
+  details.push(...statics.positiveTabindex, ...statics.unreachable);
+  const MAX_STOPS = 40;
+  let stopCount = 0;
+  for (let i = 0; i < MAX_STOPS; i++) {
+    await page.keyboard.press("Tab");
+    const tagged = await page.evaluate((idx) => {
+      const el = document.activeElement;
+      if (!el || el === document.body || el === document.documentElement) return false;
+      if (el.hasAttribute("data-a11y-behave-taborder")) return false;
+      el.setAttribute("data-a11y-behave-taborder", String(idx));
+      return true;
+    }, i);
+    if (!tagged) break;
+    stopCount = i + 1;
+  }
+  if (stopCount === 0) {
+    return {
+      recipe: "tab-order",
+      wcag,
+      status: details.length > 0 ? "fail" : "skipped",
+      details: details.length > 0 ? details : ["No keyboard-focusable elements found on the page."]
+    };
+  }
+  if (stopCount > 1) {
+    await page.evaluate((last) => {
+      document.querySelector(`[data-a11y-behave-taborder="${last}"]`)?.focus();
+    }, stopCount - 1);
+    for (let i = stopCount - 2; i >= 0; i--) {
+      await page.keyboard.press("Shift+Tab");
+      const at = await page.evaluate(() => {
+        const el = document.activeElement;
+        const v = el?.getAttribute("data-a11y-behave-taborder");
+        return v === null || v === void 0 ? null : Number(v);
+      });
+      if (at !== i) {
+        details.push(
+          `Shift+Tab landed on stop ${at ?? "an untracked element"} instead of stop ${i} \u2014 Tab and Shift+Tab must retrace the same sequence in reverse.`
+        );
+        break;
+      }
+    }
+  }
+  await page.evaluate(() => {
+    for (const el of Array.from(
+      document.querySelectorAll("[data-a11y-behave-taborder]")
+    )) {
+      el.removeAttribute("data-a11y-behave-taborder");
+    }
+  });
+  return {
+    recipe: "tab-order",
+    wcag,
+    status: details.length > 0 ? "fail" : "pass",
+    details
   };
 }
 async function recipeDialog(page, opts) {
@@ -587,6 +675,142 @@ async function recipeNavLabels(page) {
     details
   };
 }
+var LANDMARK_SELECTOR = 'header, footer, [role="banner"], [role="contentinfo"], aside, [role="complementary"], main, [role="main"], nav, [role="navigation"], [role="region"], section[aria-label], section[aria-labelledby], [role="search"], form[aria-label], form[aria-labelledby]';
+async function recipeRegionsHeadings(page) {
+  const wcag = "1.3.1 Info and Relationships / 2.4.6 Headings and Labels";
+  const res = await page.evaluate((landmarkSel) => {
+    const isVisible = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
+    const name = (el) => {
+      const label = el.getAttribute("aria-label");
+      if (label && label.trim()) return label.trim().toLowerCase();
+      const lb = el.getAttribute("aria-labelledby");
+      if (lb) {
+        const text = lb.split(/\s+/).map((id) => document.getElementById(id)?.textContent ?? "").join(" ").trim();
+        if (text) return text.toLowerCase();
+      }
+      return null;
+    };
+    const isTopLevel = (el) => !el.parentElement?.closest("article, aside, main, nav, section, [role]");
+    const mains = Array.from(
+      document.querySelectorAll('main, [role="main"]')
+    ).filter(isVisible);
+    const landmarks = Array.from(
+      document.querySelectorAll(landmarkSel)
+    ).filter(isVisible);
+    const banners = landmarks.filter(
+      (el) => el.getAttribute("role") === "banner" || el.tagName === "HEADER" && isTopLevel(el)
+    );
+    const contentinfos = landmarks.filter(
+      (el) => el.getAttribute("role") === "contentinfo" || el.tagName === "FOOTER" && isTopLevel(el)
+    );
+    const asides = landmarks.filter(
+      (el) => el.tagName === "ASIDE" || el.getAttribute("role") === "complementary"
+    );
+    const dupNames = (group, label) => {
+      const out = [];
+      if (group.length <= 1) return out;
+      const unnamed = group.filter((el) => !name(el)).length;
+      if (unnamed > 0) {
+        out.push(
+          `${unnamed} of ${group.length} ${label} landmark(s) have no accessible name \u2014 with more than one on the page, each needs a unique aria-label/aria-labelledby.`
+        );
+      }
+      const seen = /* @__PURE__ */ new Map();
+      group.forEach((el, i) => {
+        const n = name(el);
+        if (!n) return;
+        const first = seen.get(n);
+        if (first !== void 0) {
+          out.push(
+            `${label} landmarks #${first + 1} and #${i + 1} share the label "${n}" \u2014 labels must be unique.`
+          );
+        } else {
+          seen.set(n, i);
+        }
+      });
+      return out;
+    };
+    const landmarkIssues = [];
+    if (mains.length === 0) {
+      landmarkIssues.push(
+        'No <main> (or role="main") landmark on the page \u2014 screen reader users have no way to jump directly to the primary content.'
+      );
+    } else if (mains.length > 1) {
+      landmarkIssues.push(
+        `${mains.length} <main> landmarks found \u2014 a page must have exactly one.`
+      );
+    }
+    landmarkIssues.push(...dupNames(banners, "banner"));
+    landmarkIssues.push(...dupNames(contentinfos, "contentinfo"));
+    landmarkIssues.push(...dupNames(asides, "complementary"));
+    const isLandmark = (el) => el.matches(landmarkSel);
+    const orphans = [];
+    const walk = (node) => {
+      for (const child of Array.from(node.children)) {
+        if (!isVisible(child)) continue;
+        if (isLandmark(child)) continue;
+        if (child.tagName === "SCRIPT" || child.tagName === "STYLE") continue;
+        if (child.tagName === "A" && (child.getAttribute("href") ?? "").startsWith("#")) {
+          continue;
+        }
+        const ownText = Array.from(child.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => (n.textContent ?? "").trim()).join(" ").trim();
+        if (ownText.length > 0) {
+          orphans.push(
+            `<${child.tagName.toLowerCase()}> "${ownText.slice(0, 40)}" is not inside any landmark region.`
+          );
+        }
+        walk(child);
+      }
+    };
+    walk(document.body);
+    const headingEls = Array.from(
+      document.querySelectorAll("h1, h2, h3, h4, h5, h6, [role=heading]")
+    ).filter(isVisible);
+    const headings = headingEls.map((el) => {
+      const tagLevel = /^H([1-6])$/.exec(el.tagName)?.[1];
+      const level = tagLevel ? Number(tagLevel) : Number(el.getAttribute("aria-level") ?? "0");
+      return { level, text: (el.textContent ?? "").trim(), desc: `<${el.tagName.toLowerCase()}>` };
+    });
+    const failHeadingIssues = [];
+    const warnHeadingIssues = [];
+    for (const h of headings.filter((h2) => h2.text.length === 0)) {
+      failHeadingIssues.push(
+        `${h.desc} has no accessible text \u2014 an empty heading breaks screen reader heading navigation.`
+      );
+    }
+    const h1Count = headings.filter((h) => h.level === 1).length;
+    if (h1Count === 0) {
+      failHeadingIssues.push(
+        "No <h1> on the page \u2014 screen reader users navigating by heading level have no top-level entry point."
+      );
+    } else if (h1Count > 1) {
+      warnHeadingIssues.push(
+        `${h1Count} <h1> elements found \u2014 most screen reader guidance expects a single top-level heading per page.`
+      );
+    }
+    let prev = 0;
+    for (const h of headings) {
+      if (h.level === 0) continue;
+      if (prev > 0 && h.level > prev + 1) {
+        failHeadingIssues.push(
+          `Heading level jumps from h${prev} to h${h.level} ("${h.text.slice(0, 40)}") \u2014 do not skip heading levels.`
+        );
+        break;
+      }
+      prev = h.level;
+    }
+    return { landmarkIssues, orphans, failHeadingIssues, warnHeadingIssues };
+  }, LANDMARK_SELECTOR);
+  const failDetails = [...res.landmarkIssues, ...res.failHeadingIssues];
+  const warnDetails = [...res.orphans, ...res.warnHeadingIssues];
+  if (failDetails.length > 0) {
+    return { recipe: "regions-headings", wcag, status: "fail", details: failDetails };
+  }
+  if (warnDetails.length > 0) {
+    return { recipe: "regions-headings", wcag, status: "warn", details: warnDetails };
+  }
+  return { recipe: "regions-headings", wcag, status: "pass", details: [] };
+}
 async function recipeTable(page) {
   const wcag = "1.3.1 Info and Relationships (tables)";
   const tables = await page.evaluate(() => {
@@ -700,6 +924,114 @@ async function recipeAutocomplete(page) {
     )
   };
 }
+async function recipeFormNavigation(page) {
+  const wcag = "1.3.1 Info and Relationships / 3.3.1 Error Identification / 3.3.2 Labels or Instructions";
+  const res = await page.evaluate(() => {
+    const isVisible = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
+    const accessibleName = (el) => {
+      const labelledby = el.getAttribute("aria-labelledby");
+      if (labelledby) {
+        const text = labelledby.split(/\s+/).map((id) => document.getElementById(id)?.textContent ?? "").join(" ").trim();
+        if (text) return text;
+      }
+      const label = el.getAttribute("aria-label");
+      if (label && label.trim()) return label.trim();
+      if (el.id) {
+        const forLabel = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+        if (forLabel && (forLabel.textContent ?? "").trim()) {
+          return (forLabel.textContent ?? "").trim();
+        }
+      }
+      const wrapping = el.closest("label");
+      if (wrapping && (wrapping.textContent ?? "").trim()) return (wrapping.textContent ?? "").trim();
+      const title = el.getAttribute("title");
+      if (title && title.trim()) return title.trim();
+      return "";
+    };
+    const controls = Array.from(
+      document.querySelectorAll(
+        "input, select, textarea"
+      )
+    ).filter(
+      (el) => isVisible(el) && !("type" in el && ["hidden", "submit", "button", "reset", "image"].includes(
+        el.type
+      ))
+    );
+    const unnamed = controls.filter((el) => accessibleName(el).length === 0).map((el) => {
+      const type = "type" in el ? ` type="${el.type}"` : "";
+      const nm = el.name ? ` name="${el.name}"` : "";
+      const id = el.id ? ` id="${el.id}"` : "";
+      return `<${el.tagName.toLowerCase()}${type}${nm}${id}> has no accessible name.`;
+    });
+    const radios = Array.from(
+      document.querySelectorAll('input[type="radio"]')
+    ).filter(isVisible);
+    const byName = /* @__PURE__ */ new Map();
+    for (const r of radios) {
+      if (!r.name) continue;
+      const arr = byName.get(r.name) ?? [];
+      arr.push(r);
+      byName.set(r.name, arr);
+    }
+    const groupIssues = [];
+    for (const [groupName, members] of byName) {
+      if (members.length <= 1) continue;
+      const groupedByFieldset = (() => {
+        const fs2 = members[0]?.closest("fieldset");
+        if (!fs2) return false;
+        const legend = fs2.querySelector("legend");
+        return !!legend && (legend.textContent ?? "").trim().length > 0 && members.every((m) => m.closest("fieldset") === fs2);
+      })();
+      const radiogroupNamed = (() => {
+        const rg = members[0]?.closest('[role="radiogroup"]');
+        if (!rg) return false;
+        return !!accessibleName(rg) && members.every((m) => m.closest('[role="radiogroup"]') === rg);
+      })();
+      if (!groupedByFieldset && !radiogroupNamed) {
+        groupIssues.push(
+          `Radio group "${groupName}" (${members.length} options) is not wrapped in a labelled <fieldset><legend> (or a named role="radiogroup") \u2014 screen reader users won't hear the group's purpose when they land on the first option.`
+        );
+      }
+    }
+    const invalid = Array.from(
+      document.querySelectorAll('[aria-invalid="true"]')
+    ).filter(isVisible);
+    const errorIssues = [];
+    for (const el of invalid) {
+      const describedby = el.getAttribute("aria-describedby");
+      const nm = "name" in el && el.name ? ` name="${el.name}"` : "";
+      const desc = `<${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}${nm}>`;
+      if (!describedby) {
+        errorIssues.push(
+          `${desc} has aria-invalid="true" but no aria-describedby \u2014 the error text is never announced.`
+        );
+        continue;
+      }
+      const hasText = describedby.split(/\s+/).some((id) => (document.getElementById(id)?.textContent ?? "").trim().length > 0);
+      if (!hasText) {
+        errorIssues.push(
+          `${desc} has aria-invalid="true" and aria-describedby="${describedby}" but the referenced element is missing or empty.`
+        );
+      }
+    }
+    return { unnamed, groupIssues, errorIssues, controlCount: controls.length };
+  });
+  if (res.controlCount === 0) {
+    return {
+      recipe: "form-navigation",
+      wcag,
+      status: "skipped",
+      details: ["No form controls on the page."]
+    };
+  }
+  const details = [...res.unnamed, ...res.groupIssues, ...res.errorIssues];
+  return {
+    recipe: "form-navigation",
+    wcag,
+    status: details.length > 0 ? "fail" : "pass",
+    details
+  };
+}
 async function recipeLiveRegionStatic(page) {
   const wcag = "4.1.3 Status Messages";
   const res = await page.evaluate(() => {
@@ -751,12 +1083,15 @@ var ALL_RECIPES = [
   { name: "zoom-200", run: recipeZoom200 },
   { name: "skip-link", run: recipeSkipLink },
   { name: "focus-visible", run: recipeFocusVisible },
+  { name: "tab-order", run: recipeTabOrder },
   { name: "dialog", run: recipeDialog },
   { name: "disclosure", run: recipeDisclosure },
   { name: "menu-keyboard", run: recipeMenuKeyboard },
   { name: "nav-labels", run: recipeNavLabels },
+  { name: "regions-headings", run: recipeRegionsHeadings },
   { name: "table", run: recipeTable },
   { name: "autocomplete", run: recipeAutocomplete },
+  { name: "form-navigation", run: recipeFormNavigation },
   { name: "live-region-static", run: recipeLiveRegionStatic }
 ];
 async function runRecipes(page, url, names, opts) {
@@ -893,11 +1228,14 @@ if (isMain) {
   recipeDialog,
   recipeDisclosure,
   recipeFocusVisible,
+  recipeFormNavigation,
   recipeLiveRegionStatic,
   recipeMenuKeyboard,
   recipeNavLabels,
   recipeReflow320,
+  recipeRegionsHeadings,
   recipeSkipLink,
+  recipeTabOrder,
   recipeTable,
   recipeZoom200,
   runRecipes
