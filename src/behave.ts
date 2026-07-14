@@ -1478,6 +1478,145 @@ export async function recipeFormNavigation(page: Page): Promise<RecipeResult> {
   };
 }
 
+/**
+ * Label uniqueness across links, form controls, and buttons. 2.4.4 Link
+ * Purpose (In Context) / 2.4.6 Headings and Labels / 4.1.2 Name, Role,
+ * Value. A screen reader user browsing a "links list" or "form fields list"
+ * hears only the accessible name, with no surrounding visual context — so
+ * identical names that don't mean the same thing break that navigation
+ * mode even though sighted users never notice.
+ *
+ * - Links with the same accessible name but different destinations: this is
+ *   an unambiguous, well-documented WCAG failure pattern (a fixed link text
+ *   promises a fixed destination) — `fail`.
+ * - Distinct form controls (outside a radio/checkbox group, which already
+ *   has its own grouping contract) sharing an accessible name: `fail`.
+ * - Buttons sharing an accessible name: `warn`, not `fail` — repeated
+ *   "Add to cart"-style buttons in a card grid are extremely common in real
+ *   apps and lower severity than the other two, so this is a heads-up, not
+ *   a hard block.
+ */
+export async function recipeUniqueLabels(page: Page): Promise<RecipeResult> {
+  const wcag = "2.4.4 Link Purpose / 2.4.6 Headings and Labels / 4.1.2 Name, Role, Value";
+
+  const res = await page.evaluate(() => {
+    const isVisible = (el: Element) =>
+      (el as HTMLElement).getClientRects().length > 0 &&
+      getComputedStyle(el).visibility !== "hidden";
+
+    const accessibleName = (el: HTMLElement): string => {
+      const labelledby = el.getAttribute("aria-labelledby");
+      if (labelledby) {
+        const text = labelledby
+          .split(/\s+/)
+          .map((id) => document.getElementById(id)?.textContent ?? "")
+          .join(" ")
+          .trim();
+        if (text) return text;
+      }
+      const label = el.getAttribute("aria-label");
+      if (label && label.trim()) return label.trim();
+      if (el.id) {
+        const forLabel = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+        if (forLabel && (forLabel.textContent ?? "").trim()) {
+          return (forLabel.textContent ?? "").trim();
+        }
+      }
+      const wrapping = el.closest("label");
+      if (wrapping && (wrapping.textContent ?? "").trim()) return (wrapping.textContent ?? "").trim();
+      const text = (el.textContent ?? "").trim();
+      if (text) return text;
+      const title = el.getAttribute("title");
+      if (title && title.trim()) return title.trim();
+      return "";
+    };
+    const normalizeName = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+
+    // --- Links: same name, different destination ---
+    const linkGroups = new Map<string, { href: string; el: HTMLAnchorElement }[]>();
+    for (const a of Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]"))) {
+      if (!isVisible(a)) continue;
+      const href = a.getAttribute("href") ?? "";
+      if (!href || href.startsWith("#") || href.toLowerCase().startsWith("javascript:")) continue;
+      const name = normalizeName(accessibleName(a));
+      if (!name) continue;
+      let resolved: string;
+      try {
+        resolved = new URL(href, document.baseURI).href;
+      } catch {
+        continue;
+      }
+      const arr = linkGroups.get(name) ?? [];
+      arr.push({ href: resolved, el: a });
+      linkGroups.set(name, arr);
+    }
+    const linkIssues: string[] = [];
+    for (const [name, entries] of linkGroups) {
+      const uniqueHrefs = new Set(entries.map((e) => e.href));
+      if (entries.length > 1 && uniqueHrefs.size > 1) {
+        linkIssues.push(
+          `${entries.length} links named "${name}" point to ${uniqueHrefs.size} different destinations (${[...uniqueHrefs].slice(0, 3).join(", ")}${uniqueHrefs.size > 3 ? ", …" : ""}) — identical link text must mean the same destination.`,
+        );
+      }
+    }
+
+    // --- Form controls: same name, distinct (non-grouped) fields ---
+    const controls = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        'input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=reset]):not([type=image]):not([type=radio]):not([type=checkbox]), select, textarea',
+      ),
+    ).filter(isVisible);
+    const controlGroups = new Map<string, HTMLElement[]>();
+    for (const c of controls) {
+      const name = normalizeName(accessibleName(c));
+      if (!name) continue;
+      const arr = controlGroups.get(name) ?? [];
+      arr.push(c);
+      controlGroups.set(name, arr);
+    }
+    const controlIssues: string[] = [];
+    for (const [name, els] of controlGroups) {
+      if (els.length > 1) {
+        controlIssues.push(
+          `${els.length} form controls are all named "${name}" — a screen reader user browsing the form fields list can't tell them apart.`,
+        );
+      }
+    }
+
+    // --- Buttons: same name repeated (warn only) ---
+    const buttons = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        'button, [role="button"], input[type="submit"], input[type="button"], input[type="reset"]',
+      ),
+    ).filter(isVisible);
+    const buttonGroups = new Map<string, number>();
+    for (const b of buttons) {
+      const name = normalizeName(accessibleName(b));
+      if (!name) continue;
+      buttonGroups.set(name, (buttonGroups.get(name) ?? 0) + 1);
+    }
+    const buttonIssues: string[] = [];
+    for (const [name, count] of buttonGroups) {
+      if (count > 1) {
+        buttonIssues.push(
+          `${count} buttons are all named "${name}" — consider a more specific accessible name (e.g. aria-label) so each is distinguishable in a buttons list.`,
+        );
+      }
+    }
+
+    return { linkIssues, controlIssues, buttonIssues };
+  });
+
+  const failDetails = [...res.linkIssues, ...res.controlIssues];
+  if (failDetails.length > 0) {
+    return { recipe: "unique-labels", wcag, status: "fail", details: failDetails };
+  }
+  if (res.buttonIssues.length > 0) {
+    return { recipe: "unique-labels", wcag, status: "warn", details: res.buttonIssues };
+  }
+  return { recipe: "unique-labels", wcag, status: "pass", details: [] };
+}
+
 /** 4.1.3 Status Messages — structural live-region mistakes detectable at load. */
 export async function recipeLiveRegionStatic(page: Page): Promise<RecipeResult> {
   const wcag = "4.1.3 Status Messages";
@@ -1561,6 +1700,7 @@ export const ALL_RECIPES: Recipe[] = [
   { name: "table", run: recipeTable },
   { name: "autocomplete", run: recipeAutocomplete },
   { name: "form-navigation", run: recipeFormNavigation },
+  { name: "unique-labels", run: recipeUniqueLabels },
   { name: "live-region-static", run: recipeLiveRegionStatic },
 ];
 

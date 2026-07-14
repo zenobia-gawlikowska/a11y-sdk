@@ -109,16 +109,16 @@
     {
       "id": "2.4.4",
       "title": "Link Purpose",
-      "enforcement": ["lint", "axe", "llm"],
-      "checkers": ["lint:anchor-has-content", "axe:link-name"],
-      "llmJudgment": "Does the link text describe the destination (no 'click here' / 'read more')?"
+      "enforcement": ["lint", "axe", "behave", "llm"],
+      "checkers": ["lint:anchor-has-content", "axe:link-name", "behave:unique-labels"],
+      "llmJudgment": "Does the link text describe the destination (no 'click here' / 'read more')? behave:unique-labels catches the specific, well-documented failure of identical link text pointing to different destinations; whether the text is descriptive at all remains judgment."
     },
     {
       "id": "2.4.6",
       "title": "Headings and Labels",
       "enforcement": ["lint", "behave", "llm"],
-      "checkers": ["lint:heading-has-content", "behave:regions-headings", "behave:visual-headings"],
-      "llmJudgment": "Do headings describe the content that follows? Do labels describe the input's purpose? (Presence of an h1, empty headings, and skipped levels are now script-verified.) Whether a flagged visual-headings candidate should actually become a real heading element is judgment."
+      "checkers": ["lint:heading-has-content", "behave:regions-headings", "behave:visual-headings", "behave:unique-labels"],
+      "llmJudgment": "Do headings describe the content that follows? Do labels describe the input's purpose? (Presence of an h1, empty headings, and skipped levels are now script-verified.) Whether a flagged visual-headings candidate should actually become a real heading element is judgment. behave:unique-labels catches distinct form fields sharing an accessible name — whether an individual label's wording is descriptive remains judgment."
     },
     {
       "id": "2.4.7",
@@ -187,8 +187,8 @@
       "id": "4.1.2",
       "title": "Name, Role, Value",
       "enforcement": ["lint", "axe", "behave", "llm"],
-      "checkers": ["lint:aria-props", "lint:aria-role", "lint:role-has-required-aria-props", "lint:a11y-sdk/dialog-contract", "lint:a11y-sdk/expanded-controls", "axe:aria-valid-attr", "axe:aria-valid-attr-value", "axe:aria-required-attr", "axe:button-name", "behave:disclosure", "behave:dialog", "behave:nav-current"],
-      "llmJudgment": "Does a custom widget expose ALL of its states, not just the ones linters can see declared?"
+      "checkers": ["lint:aria-props", "lint:aria-role", "lint:role-has-required-aria-props", "lint:a11y-sdk/dialog-contract", "lint:a11y-sdk/expanded-controls", "axe:aria-valid-attr", "axe:aria-valid-attr-value", "axe:aria-required-attr", "axe:button-name", "behave:disclosure", "behave:dialog", "behave:nav-current", "behave:unique-labels"],
+      "llmJudgment": "Does a custom widget expose ALL of its states, not just the ones linters can see declared? behave:unique-labels flags repeated button names as a warn (real severity varies too much for a hard fail — a card-grid \"Add to cart\" pattern is common and lower-risk than a form-field or link collision)."
     },
     {
       "id": "4.1.3",
@@ -208,7 +208,7 @@
     {
       "id": "form",
       "enforcement": ["lint", "axe", "behave", "llm"],
-      "checkers": ["lint:label-has-associated-control", "lint:a11y-sdk/autocomplete-required", "axe:label", "behave:autocomplete", "behave:form-navigation"],
+      "checkers": ["lint:label-has-associated-control", "lint:a11y-sdk/autocomplete-required", "axe:label", "behave:autocomplete", "behave:form-navigation", "behave:unique-labels"],
       "llmJudgment": "Whether the error TEXT content accurately explains the problem; grouping strategies beyond simple same-name radio groups (e.g. checkbox groups, multi-field address blocks) still need a human read."
     },
     {

@@ -20,6 +20,8 @@
 
   <p>See the changelog — <a href="/changelog">read what's new in this release</a></p>
 
+  <p>See our terms of service — <a href="/terms">read our terms of service</a></p>
+
   <h2>Top Stories</h2>
 
   <form>
@@ -41,11 +43,23 @@
       <input id="email" type="email" autocomplete="email" aria-invalid="true" aria-describedby="email-error" />
       <p id="email-error">Enter a valid email address</p>
     </div>
+
+    <div>
+      <label for="discount">Discount code</label>
+      <input id="discount" type="text" />
+    </div>
+    <div>
+      <label for="referral">Referral code</label>
+      <input id="referral" type="text" />
+    </div>
   </form>
 
   <button aria-label="Notifications" on:click={onAction}>🔔</button>
 
   <button on:click={onAction}>Dismiss</button>
+
+  <button aria-label="Export subscriber list" on:click={onAction}>Export</button>
+  <button aria-label="Export analytics report" on:click={onAction}>Export</button>
 
   <ul>
     <li>Update A — released today</li>

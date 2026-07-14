@@ -43,11 +43,15 @@ const BAD_HTML = `<!doctype html>
     <div role="menuitem" tabindex="-1">Item B</div>
   </div>
   <table><tr><td>1</td><td>2</td></tr></table>
+  <p>Item A — <a href="/item-a">Read more</a></p>
+  <p>Item B — <a href="/item-b">Read more</a></p>
   <form>
     <input type="email" name="email">
     <input type="radio" name="plan" value="a"> Basic
     <input type="radio" name="plan" value="b"> Pro
     <input type="text" id="bad-invalid" aria-invalid="true">
+    <label>Coupon code <input type="text"></label>
+    <label>Coupon code <input type="text"></label>
   </form>
   <div id="dlg" role="dialog">A dialog with no aria-modal and no name <button id="dlg-btn">OK</button></div>
   <div aria-live="polite"><div role="status">saved</div></div>
@@ -208,6 +212,8 @@ const SUBTLE_HTML = `<!doctype html>
     <span id="empty-err"></span>
   </form>
   <div class="card"><svg aria-hidden="true"><path d="M0 0"/></svg><div class="card-title">Card With Icon</div></div>
+  <button>Export</button>
+  <button>Export</button>
   <h1>Report</h1>
   <h3 id="s1">Section</h3>
 </main>
@@ -267,6 +273,7 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     expect(results["form-navigation"]?.status).toBe("fail");
     expect(results["nav-current"]?.status).toBe("fail");
     expect(results["visual-headings"]?.status).toBe("warn");
+    expect(results["unique-labels"]?.status).toBe("fail");
 
     // Spot-check details carry actionable specifics
     expect(results["dialog"]?.details.join("\n")).toContain("aria-modal");
@@ -289,6 +296,10 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     // Large bold div doing a heading's job without the markup — warn only,
     // never fail, since "is this really a heading" needs judgment.
     expect(results["visual-headings"]?.details.join("\n")).toContain("Section Overview");
+    // Two "Read more" links to different destinations, two "Coupon code" fields.
+    const uniqueLabelsDetails = results["unique-labels"]?.details.join("\n") ?? "";
+    expect(uniqueLabelsDetails).toContain("different destinations");
+    expect(uniqueLabelsDetails).toContain('"coupon code"');
   }, 120_000);
 
   it("produces no false positives on the good fixture", async () => {
@@ -312,6 +323,7 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
       "form-navigation",
       "nav-current",
       "visual-headings",
+      "unique-labels",
     ]) {
       expect(results[name]?.status, `${name}: ${results[name]?.details.join("; ")}`).toBe("pass");
     }
@@ -342,6 +354,8 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     // Widget labels ("Settings", "Item A"/"B"/"C") aren't styled to look
     // like headings — no false positive from a well-built widget.
     expect(results["visual-headings"]?.status, results["visual-headings"]?.details.join("; ")).toBe("pass");
+    // No duplicate link/button/field names on this page.
+    expect(results["unique-labels"]?.status, results["unique-labels"]?.details.join("; ")).toBe("pass");
   }, 120_000);
 
   it("catches secondary failure modes on the subtle fixture", async () => {
@@ -399,6 +413,9 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     expect(results["reflow-320"]?.status).toBe("pass");
     expect(results["focus-visible"]?.status).toBe("pass");
     expect(results["tab-order"]?.status, results["tab-order"]?.details.join("; ")).toBe("pass");
+    // Two "Export" buttons — warn only (vs. bad.html's link/field fail cases).
+    expect(results["unique-labels"]?.status).toBe("warn");
+    expect(results["unique-labels"]?.details.join("\n")).toContain('"export"');
   }, 120_000);
 
   it("honors the recipes filter", async () => {

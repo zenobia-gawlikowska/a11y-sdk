@@ -40,8 +40,8 @@ findings. The machine-readable version of this map is `.a11y/rules/registry.json
 | 2.1.2 No Keyboard Trap | behave `dialog`, `tab-order` | traps that don't manifest as forward/backward asymmetry |
 | 2.4.1 Bypass Blocks | axe + behave `skip-link` | — |
 | 2.4.3 Focus Order | lint (`tabindex-no-positive`) + behave `tab-order` (reachability, positive tabindex, Tab/Shift+Tab symmetry) | is the order meaning-preserving for the visual layout |
-| 2.4.4 Link Purpose | lint + axe | text describes destination |
-| 2.4.6 Headings and Labels | lint + behave `regions-headings` (h1 presence, empty headings, skipped levels), `visual-headings` (candidates only) | descriptive quality; which visual-headings candidates should become real headings |
+| 2.4.4 Link Purpose | lint + axe + behave `unique-labels` (identical text, different destination) | text describes destination |
+| 2.4.6 Headings and Labels | lint + behave `regions-headings` (h1 presence, empty headings, skipped levels), `visual-headings` (candidates only), `unique-labels` (distinct fields sharing a name) | descriptive quality; which visual-headings candidates should become real headings |
 | 2.4.7 Focus Visible | behave `focus-visible` | — |
 | 2.4.11 Focus Appearance | behave `focus-visible` (presence only) | 2px perimeter / 3:1 contrast |
 | 2.5.3 Label in Name | axe | — |
@@ -51,7 +51,7 @@ findings. The machine-readable version of this map is `.a11y/rules/registry.json
 | 3.3.1 Error Identification | behave `form-navigation` (aria-invalid/aria-describedby pairing) | does the error text accurately describe the problem; is validation triggered app-appropriately |
 | 3.3.2 Labels or Instructions | lint + axe + behave `form-navigation` (accessible name, radio-group fieldset/legend) | label describes purpose |
 | 4.1.1 Parsing | axe | — |
-| 4.1.2 Name, Role, Value | lint (incl. dialog & aria-expanded contracts) + axe + behave `disclosure`, `dialog`, `nav-current` | state completeness of custom widgets |
+| 4.1.2 Name, Role, Value | lint (incl. dialog & aria-expanded contracts) + axe + behave `disclosure`, `dialog`, `nav-current`, `unique-labels` (repeated button names, warn) | state completeness of custom widgets |
 | 4.1.3 Status Messages | behave `live-region-static` (partial) | role choice; injection timing |
 
 The full prose rules below remain the **generation-time guidance** — apply
@@ -271,9 +271,13 @@ screen reader user's forms mode would: every visible control must resolve to
 a non-empty accessible name, radio groups sharing a `name` must sit inside a
 labelled `<fieldset><legend>` (or a named `role="radiogroup"`), and any field
 carrying `aria-invalid="true"` must have `aria-describedby` pointing at real,
-non-empty text. Whether the error TEXT accurately explains the problem, and
-grouping strategies beyond same-name radio groups (checkbox groups,
-multi-field address blocks), remain judgment checks.
+non-empty text. `behave.cjs --recipes unique-labels` additionally fails when
+two distinct (non-grouped) fields resolve to the same accessible name — a
+page with two fields both just called "Email" is as broken for a screen
+reader user's form-fields list as a missing label. Whether the error TEXT
+accurately explains the problem, and grouping strategies beyond same-name
+radio groups (checkbox groups, multi-field address blocks), remain judgment
+checks.
 
 ---
 
@@ -372,6 +376,35 @@ heading or `role="heading"`.
 
 ---
 
+### Unique Labels (Links, Buttons, Form Fields)
+
+A screen reader user browsing a "links list", "buttons list", or "form
+fields list" hears only the accessible name — no surrounding visual
+context. Identical names that don't mean the same thing break that
+navigation mode even though sighted users never notice.
+
+**Required behavior:**
+- Links with the same visible/accessible text must point to the same
+  destination — a "Read more" repeated across a list of articles must not
+  reuse the exact same wording for different articles (add per-item context:
+  "Read more about Widget Pro")
+- Two distinct form fields must not resolve to the same accessible name
+  (two fields both just called "Email" is as broken as a missing label) —
+  this doesn't apply to a radio/checkbox group's own options, which
+  legitimately have different labels under one shared `name` attribute
+- Prefer a more specific accessible name (`aria-label`) over identical
+  visible button text when the same action repeats across a list (e.g. "Add
+  Widget Pro to cart" rather than a bare "Add to cart" repeated per row)
+
+**Deterministic check:** `behave.cjs --recipes unique-labels` fails when
+links sharing an accessible name resolve to different destinations, and
+when distinct (non-grouped) form controls share an accessible name. It only
+`warn`s on repeated button names — a card-grid "Add to cart" pattern is
+extremely common in real apps and lower severity than the other two, so
+it's a heads-up rather than a hard block.
+
+---
+
 ### Toast / Alert / Notification
 
 | Urgency | Role | When to use |
@@ -435,15 +468,18 @@ node .a11y/scripts/behave.cjs <url> --dialog-trigger "#open-settings"
 
 Behavioral recipes: `reflow-320`, `zoom-200`, `skip-link`, `focus-visible`,
 `tab-order`, `dialog`, `disclosure`, `menu-keyboard`, `nav-labels`,
-`nav-current`, `regions-headings`, `visual-headings`, `table`, `autocomplete`,
-`form-navigation`, `live-region-static`. All run by default; `--recipes`
-selects a subset. Each recipe reloads the page, so they cannot interfere
-with each other.
+`nav-current`, `regions-headings`, `visual-headings`, `unique-labels`,
+`table`, `autocomplete`, `form-navigation`, `live-region-static`. All run by
+default; `--recipes` selects a subset. Each recipe reloads the page, so
+they cannot interfere with each other.
 
-`visual-headings` is the one recipe in this list that never `fail`s — it
-only `warn`s or `pass`es, since it hands back a candidate list (visually
-prominent non-heading text) rather than a verdict. Treat a `warn` there as
-"go read these elements," not as a violation to fix mechanically.
+`visual-headings` never `fail`s — it only `warn`s or `pass`es, since it
+hands back a candidate list (visually prominent non-heading text) rather
+than a verdict. Treat a `warn` there as "go read these elements," not as a
+violation to fix mechanically. `unique-labels` is similar but partial: it
+`fail`s on duplicate link destinations and duplicate form-field names (both
+unambiguous), but only `warn`s on duplicate button names (real severity
+varies too much for a hard rule).
 
 Three recipes are organized around assistive-technology personas rather than
 a single component: `tab-order` walks the page the way a sighted keyboard-only

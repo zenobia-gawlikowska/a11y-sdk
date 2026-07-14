@@ -17,6 +17,8 @@
 
   <p>See the full report — <a href="/report">read the full quarterly report</a></p>
 
+  <p>See our privacy policy — <a href="/privacy">read our privacy policy</a></p>
+
   <h2>Key Metrics</h2>
 
   <form>
@@ -38,11 +40,23 @@
       <input id="email" type="email" autocomplete="email" aria-invalid="true" aria-describedby="email-error" />
       <p id="email-error">Enter a valid email address</p>
     </div>
+
+    <div>
+      <label for="promo">Promo code</label>
+      <input id="promo" type="text" />
+    </div>
+    <div>
+      <label for="referral">Referral code</label>
+      <input id="referral" type="text" />
+    </div>
   </form>
 
   <button aria-label="Settings" (click)="onAction()">⚙️</button>
 
   <button (click)="onAction()">Export data</button>
+
+  <button aria-label="Export metrics as CSV" (click)="onAction()">Export</button>
+  <button aria-label="Export metrics as PDF" (click)="onAction()">Export</button>
 
   <table>
     <caption>Metric summary</caption>

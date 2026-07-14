@@ -13,6 +13,9 @@
     [10] Large/bold <div> styled to look like a heading — behave:visual-headings
     [11] Radio group with no <fieldset>/<legend> — behave:form-navigation
     [12] aria-invalid="true" with no aria-describedby — behave:form-navigation
+    [13] Two links named "kliknij tutaj" pointing to different destinations — behave:unique-labels
+    [14] Two distinct "Kod rabatowy" fields — behave:unique-labels
+    [15] Two "Eksportuj" buttons — behave:unique-labels (warn-only)
 
     See ../good.html for the corrected version of this same page.
   -->
@@ -25,6 +28,9 @@
 
     <!-- [6] generic link text -->
     <p>Sprawdź promocje — <a href="/promocje">kliknij tutaj</a></p>
+
+    <!-- [13] same generic text, different destination -->
+    <p>Sprawdź regulamin zwrotów — <a href="/zwroty">kliknij tutaj</a></p>
 
     <!-- [8] nav link to this page with no aria-current -->
     <nav aria-label="Primary">
@@ -65,6 +71,14 @@
       E-mail
       <input type="email" aria-invalid="true" />
     </label>
+
+    <!-- [14] two distinct fields, same accessible name -->
+    <label>Kod rabatowy <input type="text" /></label>
+    <label>Kod rabatowy <input type="text" /></label>
+
+    <!-- [15] two buttons, same accessible name (warn-only) -->
+    <button @click="dismiss">Eksportuj</button>
+    <button @click="dismiss">Eksportuj</button>
 
     <ul>
       <li>Oferta A — 49 zł</li>
