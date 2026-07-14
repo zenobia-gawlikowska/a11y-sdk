@@ -41,6 +41,7 @@ __export(behave_exports, {
   recipeFormNavigation: () => recipeFormNavigation,
   recipeLiveRegionStatic: () => recipeLiveRegionStatic,
   recipeMenuKeyboard: () => recipeMenuKeyboard,
+  recipeNavCurrent: () => recipeNavCurrent,
   recipeNavLabels: () => recipeNavLabels,
   recipeReflow320: () => recipeReflow320,
   recipeRegionsHeadings: () => recipeRegionsHeadings,
@@ -675,6 +676,77 @@ async function recipeNavLabels(page) {
     details
   };
 }
+async function recipeNavCurrent(page) {
+  const wcag = "4.1.2 Name, Role, Value / 2.4.8 Location (AAA)";
+  const res = await page.evaluate((currentUrl) => {
+    const isVisible = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
+    const normalize = (href) => {
+      if (!href || href.startsWith("#") || href.toLowerCase().startsWith("javascript:")) {
+        return null;
+      }
+      try {
+        const u = new URL(href, document.baseURI);
+        const path2 = u.pathname === "/" ? "/" : u.pathname.replace(/\/+$/, "");
+        return `${u.origin}${path2}`;
+      } catch {
+        return null;
+      }
+    };
+    const current = normalize(currentUrl);
+    const navs = Array.from(
+      document.querySelectorAll("nav, [role=navigation]")
+    ).filter(isVisible);
+    const issues = [];
+    let anySelfLink = false;
+    navs.forEach((nav, i) => {
+      const links = Array.from(nav.querySelectorAll("a[href]")).filter(
+        isVisible
+      );
+      const selfLinks = links.filter((a) => current && normalize(a.getAttribute("href") ?? "") === current);
+      const flagged = links.filter((a) => a.getAttribute("aria-current") === "page");
+      if (selfLinks.length > 0) {
+        anySelfLink = true;
+        const unflagged = selfLinks.filter((a) => a.getAttribute("aria-current") !== "page");
+        if (unflagged.length > 0) {
+          const text = (unflagged[0]?.textContent ?? "").trim().slice(0, 40);
+          issues.push(
+            `Navigation landmark #${i + 1}: link to the current page ("${text}") is missing aria-current="page".`
+          );
+        }
+      }
+      if (flagged.length > 1) {
+        issues.push(
+          `Navigation landmark #${i + 1}: ${flagged.length} links carry aria-current="page" \u2014 only the link to the actual current page should.`
+        );
+      }
+    });
+    return { issues, navCount: navs.length, anySelfLink };
+  }, page.url());
+  if (res.navCount === 0) {
+    return {
+      recipe: "nav-current",
+      wcag,
+      status: "skipped",
+      details: ["No navigation landmarks on the page."]
+    };
+  }
+  if (!res.anySelfLink && res.issues.length === 0) {
+    return {
+      recipe: "nav-current",
+      wcag,
+      status: "skipped",
+      details: [
+        "No navigation link resolves to the current page's URL \u2014 nothing to verify aria-current against."
+      ]
+    };
+  }
+  return {
+    recipe: "nav-current",
+    wcag,
+    status: res.issues.length > 0 ? "fail" : "pass",
+    details: res.issues
+  };
+}
 var LANDMARK_SELECTOR = 'header, footer, [role="banner"], [role="contentinfo"], aside, [role="complementary"], main, [role="main"], nav, [role="navigation"], [role="region"], section[aria-label], section[aria-labelledby], [role="search"], form[aria-label], form[aria-labelledby]';
 async function recipeRegionsHeadings(page) {
   const wcag = "1.3.1 Info and Relationships / 2.4.6 Headings and Labels";
@@ -1088,6 +1160,7 @@ var ALL_RECIPES = [
   { name: "disclosure", run: recipeDisclosure },
   { name: "menu-keyboard", run: recipeMenuKeyboard },
   { name: "nav-labels", run: recipeNavLabels },
+  { name: "nav-current", run: recipeNavCurrent },
   { name: "regions-headings", run: recipeRegionsHeadings },
   { name: "table", run: recipeTable },
   { name: "autocomplete", run: recipeAutocomplete },
@@ -1231,6 +1304,7 @@ if (isMain) {
   recipeFormNavigation,
   recipeLiveRegionStatic,
   recipeMenuKeyboard,
+  recipeNavCurrent,
   recipeNavLabels,
   recipeReflow320,
   recipeRegionsHeadings,

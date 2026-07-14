@@ -30,7 +30,7 @@ const BAD_HTML = `<!doctype html>
 </style>
 </head>
 <body>
-<nav><a href="/one">One</a> <a href="/two">Two</a></nav>
+<nav><a href="/one">One</a> <a href="/two">Two</a> <a href="bad.html">Home</a></nav>
 <nav><a href="/three">Three</a></nav>
 <main>
   <div class="wide" tabindex="3">wide content</div>
@@ -67,7 +67,7 @@ const GOOD_HTML = `<!doctype html>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
-<nav aria-label="Main"><a href="#s1">Section 1</a></nav>
+<nav aria-label="Main"><a href="#s1">Section 1</a> <a href="good.html" aria-current="page">Home</a></nav>
 <nav aria-label="Footer"><a href="#s1">Legal</a></nav>
 <main id="main">
   <h1>Good fixture</h1>
@@ -182,7 +182,7 @@ const SUBTLE_HTML = `<!doctype html>
 </head>
 <body>
 <a href="#nowhere">Skip to content</a>
-<nav aria-label="Main"><a href="#s1">One</a></nav>
+<nav aria-label="Main"><a href="#s1">One</a> <a href="subtle.html" aria-current="page">Home</a> <a href="subtle.html?ref=x" aria-current="page">Home again</a></nav>
 <nav aria-label="Main"><a href="#s1">Two</a></nav>
 <main>
   <button id="open" aria-haspopup="dialog">Open settings</button>
@@ -259,6 +259,7 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     expect(results["tab-order"]?.status).toBe("fail");
     expect(results["regions-headings"]?.status).toBe("fail");
     expect(results["form-navigation"]?.status).toBe("fail");
+    expect(results["nav-current"]?.status).toBe("fail");
 
     // Spot-check details carry actionable specifics
     expect(results["dialog"]?.details.join("\n")).toContain("aria-modal");
@@ -276,6 +277,8 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     expect(formNavDetails).toContain("has no accessible name");
     expect(formNavDetails).toContain("is not wrapped in a labelled <fieldset><legend>");
     expect(formNavDetails).toContain("no aria-describedby");
+    // Nav link to the current page missing aria-current="page".
+    expect(results["nav-current"]?.details.join("\n")).toContain('missing aria-current="page"');
   }, 120_000);
 
   it("produces no false positives on the good fixture", async () => {
@@ -297,6 +300,7 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
       "tab-order",
       "regions-headings",
       "form-navigation",
+      "nav-current",
     ]) {
       expect(results[name]?.status, `${name}: ${results[name]?.details.join("; ")}`).toBe("pass");
     }
@@ -322,6 +326,8 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     expect(results["tab-order"]?.status, results["tab-order"]?.details.join("; ")).toBe("pass");
     // No form controls on this page.
     expect(results["form-navigation"]?.status).toBe("skipped");
+    // No nav on the page.
+    expect(results["nav-current"]?.status).toBe("skipped");
   }, 120_000);
 
   it("catches secondary failure modes on the subtle fixture", async () => {
@@ -364,6 +370,12 @@ describe.skipIf(!chromiumAvailable)("behave recipes (integration)", () => {
     expect(results["form-navigation"]?.status).toBe("fail");
     expect(results["form-navigation"]?.details.join("\n")).toContain(
       "missing or empty",
+    );
+    // Two links to the current page both marked aria-current="page" (vs.
+    // bad.html's link that's missing it entirely).
+    expect(results["nav-current"]?.status).toBe("fail");
+    expect(results["nav-current"]?.details.join("\n")).toContain(
+      'carry aria-current="page"',
     );
     // Sanity: things done right here stay green.
     expect(results["reflow-320"]?.status).toBe("pass");
