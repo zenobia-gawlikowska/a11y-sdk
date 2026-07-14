@@ -19,8 +19,8 @@
       "id": "1.3.1",
       "title": "Info and Relationships",
       "enforcement": ["lint", "axe", "behave", "llm"],
-      "checkers": ["lint:label-has-associated-control", "axe:label", "axe:heading-order", "axe:page-has-heading-one", "axe:empty-heading", "axe:region", "axe:landmark-one-main", "axe:landmark-unique", "axe:aria-required-children", "axe:aria-required-parent", "behave:nav-labels", "behave:table", "behave:regions-headings", "behave:form-navigation"],
-      "llmJudgment": "Do the chosen semantics actually match the visual structure? (axe:heading-order/region/landmark-* are best-practice-tagged rules force-enabled on top of the WCAG tag filter — see audit.ts's BEST_PRACTICE_RULES.)"
+      "checkers": ["lint:label-has-associated-control", "axe:label", "axe:heading-order", "axe:page-has-heading-one", "axe:empty-heading", "axe:region", "axe:landmark-one-main", "axe:landmark-unique", "axe:aria-required-children", "axe:aria-required-parent", "behave:nav-labels", "behave:table", "behave:regions-headings", "behave:form-navigation", "behave:visual-headings"],
+      "llmJudgment": "Do the chosen semantics actually match the visual structure? (axe:heading-order/region/landmark-* are best-practice-tagged rules force-enabled on top of the WCAG tag filter — see audit.ts's BEST_PRACTICE_RULES.) behave:visual-headings narrows this to a short candidate list of visually-prominent non-heading text — deciding which candidates are genuinely acting as headings (vs. a stat tile, CTA, or pull-quote) stays judgment, which is why that recipe only warns."
     },
     {
       "id": "1.3.2",
@@ -117,8 +117,8 @@
       "id": "2.4.6",
       "title": "Headings and Labels",
       "enforcement": ["lint", "behave", "llm"],
-      "checkers": ["lint:heading-has-content", "behave:regions-headings"],
-      "llmJudgment": "Do headings describe the content that follows? Do labels describe the input's purpose? (Presence of an h1, empty headings, and skipped levels are now script-verified.)"
+      "checkers": ["lint:heading-has-content", "behave:regions-headings", "behave:visual-headings"],
+      "llmJudgment": "Do headings describe the content that follows? Do labels describe the input's purpose? (Presence of an h1, empty headings, and skipped levels are now script-verified.) Whether a flagged visual-headings candidate should actually become a real heading element is judgment."
     },
     {
       "id": "2.4.7",

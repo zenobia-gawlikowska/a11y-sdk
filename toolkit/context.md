@@ -27,7 +27,7 @@ findings. The machine-readable version of this map is `.a11y/rules/registry.json
 | Criterion | Deterministic checker(s) | Remaining judgment |
 |---|---|---|
 | 1.1.1 Non-text Content | lint + axe | alt text meaningful? decorative correctly hidden? |
-| 1.3.1 Info and Relationships | lint + axe (incl. best-practice `region`/`landmark-*`/`heading-order`/`page-has-heading-one`/`empty-heading`, force-enabled — see `audit.ts`'s `BEST_PRACTICE_RULES`) + behave `nav-labels`, `table`, `regions-headings`, `form-navigation` | semantics match visual structure |
+| 1.3.1 Info and Relationships | lint + axe (incl. best-practice `region`/`landmark-*`/`heading-order`/`page-has-heading-one`/`empty-heading`, force-enabled — see `audit.ts`'s `BEST_PRACTICE_RULES`) + behave `nav-labels`, `table`, `regions-headings`, `form-navigation`, `visual-headings` | semantics match visual structure; which flagged candidates are really headings |
 | 1.3.2 Meaningful Sequence | — | DOM order vs. reading order |
 | 1.3.5 Identify Input Purpose | lint (token validity; missing autocomplete on personal-data inputs) + behave `autocomplete` | correct token choice |
 | 1.4.1 Use of Color | — | color-only signalling |
@@ -41,7 +41,7 @@ findings. The machine-readable version of this map is `.a11y/rules/registry.json
 | 2.4.1 Bypass Blocks | axe + behave `skip-link` | — |
 | 2.4.3 Focus Order | lint (`tabindex-no-positive`) + behave `tab-order` (reachability, positive tabindex, Tab/Shift+Tab symmetry) | is the order meaning-preserving for the visual layout |
 | 2.4.4 Link Purpose | lint + axe | text describes destination |
-| 2.4.6 Headings and Labels | lint + behave `regions-headings` (h1 presence, empty headings, skipped levels) | descriptive quality |
+| 2.4.6 Headings and Labels | lint + behave `regions-headings` (h1 presence, empty headings, skipped levels), `visual-headings` (candidates only) | descriptive quality; which visual-headings candidates should become real headings |
 | 2.4.7 Focus Visible | behave `focus-visible` | — |
 | 2.4.11 Focus Appearance | behave `focus-visible` (presence only) | 2px perimeter / 3:1 contrast |
 | 2.5.3 Label in Name | axe | — |
@@ -359,6 +359,17 @@ runtime interaction — there's no meaningful additional *behavioral* test to
 add here beyond what these two layers already check. Whether the chosen HTML
 semantics actually match the visual structure remains a judgment check.
 
+**Fake headings:** `behave.cjs --recipes visual-headings` finds visually
+prominent text (font-size and weight relative to body text) that isn't
+marked up as a heading — the classic `<div class="title">` styled to look
+like an `<h2>` but never given one. This only `warn`s, never `fail`s: the
+visual-prominence signal is fully script-detectable, but whether a given
+candidate is *really* acting as a heading (versus a stat tile, CTA button,
+pull-quote, or logo — all excluded from candidacy, along with anything
+inside `header`/`nav`/`footer` chrome) is a judgment call. Read the
+candidate list and decide per-element whether it should become a real
+heading or `role="heading"`.
+
 ---
 
 ### Toast / Alert / Notification
@@ -424,9 +435,15 @@ node .a11y/scripts/behave.cjs <url> --dialog-trigger "#open-settings"
 
 Behavioral recipes: `reflow-320`, `zoom-200`, `skip-link`, `focus-visible`,
 `tab-order`, `dialog`, `disclosure`, `menu-keyboard`, `nav-labels`,
-`nav-current`, `regions-headings`, `table`, `autocomplete`, `form-navigation`,
-`live-region-static`. All run by default; `--recipes` selects a subset. Each
-recipe reloads the page, so they cannot interfere with each other.
+`nav-current`, `regions-headings`, `visual-headings`, `table`, `autocomplete`,
+`form-navigation`, `live-region-static`. All run by default; `--recipes`
+selects a subset. Each recipe reloads the page, so they cannot interfere
+with each other.
+
+`visual-headings` is the one recipe in this list that never `fail`s — it
+only `warn`s or `pass`es, since it hands back a candidate list (visually
+prominent non-heading text) rather than a verdict. Treat a `warn` there as
+"go read these elements," not as a violation to fix mechanically.
 
 Three recipes are organized around assistive-technology personas rather than
 a single component: `tab-order` walks the page the way a sighted keyboard-only

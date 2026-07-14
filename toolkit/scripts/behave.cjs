@@ -48,6 +48,7 @@ __export(behave_exports, {
   recipeSkipLink: () => recipeSkipLink,
   recipeTabOrder: () => recipeTabOrder,
   recipeTable: () => recipeTable,
+  recipeVisualHeadings: () => recipeVisualHeadings,
   recipeZoom200: () => recipeZoom200,
   runRecipes: () => runRecipes
 });
@@ -883,6 +884,67 @@ async function recipeRegionsHeadings(page) {
   }
   return { recipe: "regions-headings", wcag, status: "pass", details: [] };
 }
+var VISUAL_HEADING_EXCLUDED_ANCESTORS = 'header, [role="banner"], nav, [role="navigation"], footer, [role="contentinfo"], button, a, [role="button"], [role="link"], [role="tab"], [role="menuitem"]';
+async function recipeVisualHeadings(page) {
+  const wcag = "1.3.1 Info and Relationships / 2.4.6 Headings and Labels";
+  const res = await page.evaluate((excludedAncestorSel) => {
+    const isVisible = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
+    const isDecorative = (el) => el.tagName === "SVG" || el.tagName === "PATH" || el.getAttribute("aria-hidden") === "true";
+    const baseSize = parseFloat(getComputedStyle(document.body).fontSize) || 16;
+    const MAX_CANDIDATES = 30;
+    const MIN_LEN = 3;
+    const MAX_LEN = 120;
+    const HAS_LETTER = /\p{L}/u;
+    const candidates = [];
+    const walk = (node) => {
+      if (candidates.length >= MAX_CANDIDATES) return;
+      for (const el of Array.from(node.children)) {
+        if (!isVisible(el)) continue;
+        if (el.tagName === "SCRIPT" || el.tagName === "STYLE") continue;
+        if (/^H[1-6]$/.test(el.tagName) || el.getAttribute("role") === "heading") {
+          continue;
+        }
+        if (el.matches(excludedAncestorSel)) continue;
+        if (el.getAttribute("aria-hidden") === "true") continue;
+        const meaningfulChildren = Array.from(el.children).filter((c) => !isDecorative(c));
+        if (meaningfulChildren.length === 0) {
+          const text = (el.textContent ?? "").trim().replace(/\s+/g, " ");
+          if (text.length >= MIN_LEN && text.length <= MAX_LEN && HAS_LETTER.test(text)) {
+            const cs = getComputedStyle(el);
+            const fontSize = parseFloat(cs.fontSize) || 0;
+            const fontWeight = parseFloat(cs.fontWeight) || 400;
+            const bold = fontWeight >= 700;
+            const ratio = fontSize / baseSize;
+            if (ratio >= 1.6 || bold && ratio >= 1.3) {
+              candidates.push({
+                tag: el.tagName.toLowerCase(),
+                text: text.slice(0, 60),
+                fontSize: Math.round(fontSize),
+                bold,
+                ratio: Math.round(ratio * 10) / 10
+              });
+            }
+          }
+        } else {
+          walk(el);
+        }
+      }
+    };
+    walk(document.body);
+    return { candidates };
+  }, VISUAL_HEADING_EXCLUDED_ANCESTORS);
+  if (res.candidates.length === 0) {
+    return { recipe: "visual-headings", wcag, status: "pass", details: [] };
+  }
+  return {
+    recipe: "visual-headings",
+    wcag,
+    status: "warn",
+    details: res.candidates.map(
+      (c) => `<${c.tag}> "${c.text}" is ${c.ratio}x body text size (${c.fontSize}px${c.bold ? ", bold" : ""}) but isn't marked up as a heading \u2014 review whether it should be a real heading element or role="heading".`
+    )
+  };
+}
 async function recipeTable(page) {
   const wcag = "1.3.1 Info and Relationships (tables)";
   const tables = await page.evaluate(() => {
@@ -1162,6 +1224,7 @@ var ALL_RECIPES = [
   { name: "nav-labels", run: recipeNavLabels },
   { name: "nav-current", run: recipeNavCurrent },
   { name: "regions-headings", run: recipeRegionsHeadings },
+  { name: "visual-headings", run: recipeVisualHeadings },
   { name: "table", run: recipeTable },
   { name: "autocomplete", run: recipeAutocomplete },
   { name: "form-navigation", run: recipeFormNavigation },
@@ -1311,6 +1374,7 @@ if (isMain) {
   recipeSkipLink,
   recipeTabOrder,
   recipeTable,
+  recipeVisualHeadings,
   recipeZoom200,
   runRecipes
 });
