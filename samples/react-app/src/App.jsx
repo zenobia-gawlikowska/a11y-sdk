@@ -3,10 +3,17 @@
 //   [1] <html> has no lang attribute (in index.html)
 //   [2] <img> missing alt
 //   [3] <button> with no accessible name (icon-only, no aria-label)
-//   [4] <input> with no associated <label>
+//   [4] <input> with no associated <label> — also caught by behave:form-navigation
 //   [5] <div> used as interactive button (no role, no keyboard handler)
 //   [6] <a> with generic "click here" text
-//   [7] Heading hierarchy skips h1 → h3
+//   [7] Heading hierarchy skips h1 → h3 — also caught by behave:regions-headings (no <h1>, no <main>)
+//   [8] <nav> link to the current page missing aria-current="page" — behave:nav-current
+//   [9] role="button" element with no tabindex — not Tab-reachable — behave:tab-order
+//   [10] Large/bold <div> styled to look like a heading — behave:visual-headings
+//   [11] Radio group with no <fieldset>/<legend> — behave:form-navigation
+//   [12] aria-invalid="true" with no aria-describedby — behave:form-navigation
+//
+// See ../good.html for the corrected version of this same page.
 
 export default function App() {
   return (
@@ -21,6 +28,14 @@ export default function App() {
       <p>
         See our offers — <a href="/offers">click here</a>
       </p>
+
+      {/* [8] nav link to this page with no aria-current */}
+      <nav aria-label="Primary">
+        <a href="/">Home</a> <a href="/catalog">Catalog</a>
+      </nav>
+
+      {/* [10] fake heading — big and bold, but not a real heading element */}
+      <div style={{ fontSize: "26px", fontWeight: 700 }}>Featured Deals</div>
 
       {/* [4] input with no label */}
       <div>
@@ -40,6 +55,24 @@ export default function App() {
         Add to cart
       </div>
 
+      {/* [9] role="button" with no tabindex — visually a button, not keyboard-reachable */}
+      <div role="button" onClick={() => console.log("buy now")}>
+        Buy now
+      </div>
+
+      {/* [11] radio group with no fieldset/legend */}
+      <div>
+        <input type="radio" name="shipping" value="standard" /> Standard
+        <input type="radio" name="shipping" value="express" /> Express
+      </div>
+
+      {/* [12] aria-invalid with no aria-describedby (label present, so this
+          isolates the missing-error-association mistake) */}
+      <label>
+        Email
+        <input type="email" aria-invalid="true" />
+      </label>
+
       <ul>
         <li>Product A — $10</li>
         <li>Product B — $20</li>
@@ -47,4 +80,3 @@ export default function App() {
     </div>
   );
 }
-// trigger
