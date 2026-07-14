@@ -31,4 +31,4 @@ jobs:
 
       - run: pnpm build:toolkit
 
-      - run: test -f toolkit/scripts/pre-commit.cjs && test -f toolkit/scripts/audit.cjs && test -f toolkit/scripts/detect-framework.cjs
+      - run: test -f toolkit/scripts/pre-commit.cjs && test -f toolkit/scripts/audit.cjs && test -f toolkit/scripts/behave.cjs && test -f toolkit/scripts/detect-framework.cjs
