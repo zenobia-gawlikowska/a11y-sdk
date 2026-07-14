@@ -15,6 +15,7 @@ export default defineConfig([
       "detect-framework": "src/detect-framework.ts",
       "pre-commit": "src/pre-commit.ts",
       audit: "src/audit.ts",
+      behave: "src/behave.ts",
       "config-loader": "src/config-loader.ts",
     },
     format: ["cjs"],

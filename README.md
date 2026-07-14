@@ -16,7 +16,7 @@ Three layers, each independent:
 |---|---|---|
 | **1 — AI context** | Every prompt | AI reads WCAG rules + component patterns before generating code |
 | **2 — Pre-commit hook** | Every commit | ESLint a11y plugin catches violations in staged files |
-| **3 — Audit** | On request | axe-core scans a running page and reports violations by WCAG criterion |
+| **3 — Audit** | On request | axe-core scans a running page; behavioral recipes drive keyboard/focus/reflow checks axe can't |
 
 ## Installation
 
@@ -80,11 +80,17 @@ Set any category to `false` to disable it. To skip the hook for a single commit:
 Ask your AI: *"audit the dashboard at localhost:3000/dashboard"* — it will run:
 
 ```bash
-node .a11y/scripts/audit.cjs <url>
+node .a11y/scripts/audit.cjs <url>                  # axe-core static scan
 node .a11y/scripts/audit.cjs <url> --level AAA
+node .a11y/scripts/behave.cjs <url>                 # behavioral recipes
+node .a11y/scripts/behave.cjs <url> --recipes dialog,focus-visible
 ```
 
-Results are grouped by WCAG criterion, ordered by impact (`critical → serious → moderate → minor`), and written to `.a11y/audit-results.json`.
+`audit.cjs` runs the axe-core scan; results are grouped by WCAG criterion, ordered by impact (`critical → serious → moderate → minor`), and written to `.a11y/audit-results.json`.
+
+`behave.cjs` runs deterministic *behavioral* recipes that axe can't check — focus trapping and Escape handling in modals, visible focus indicators, reflow at 320px, 200%-zoom overflow, skip links, `aria-expanded` toggles that actually toggle, the `role="menu"` arrow-key contract, unique nav labels, table captions/scope/`aria-sort`, `autocomplete` on personal-data inputs, and live-region structure. Results go to `.a11y/behave-results.json`. If a modal needs a specific control to open it, pass `--dialog-trigger "<css selector>"`.
+
+The enforcement split — which rule is owned by which deterministic layer, and what remains genuine judgment — is captured in `.a11y/rules/registry.json` and summarized in `context.md`'s Enforcement Map, so AI assistants orchestrate the scripts instead of re-deriving script-owned rules by reasoning.
 
 **Requires Playwright** (installed in your project, not bundled):
 ```bash
@@ -110,6 +116,7 @@ If Playwright isn't installed, the script prints the exact commands and exits wi
 ```
 src/                        # TypeScript source
   audit.ts                  # Layer 3 — axe-core audit runner
+  behave.ts                 # Layer 3 — behavioral audit recipes
   pre-commit.ts             # Layer 2 — pre-commit hook runner
   detect-framework.ts       # Framework detection
   config-loader.ts          # Config loader
