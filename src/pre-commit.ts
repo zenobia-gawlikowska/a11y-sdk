@@ -5,6 +5,11 @@ import { join, resolve } from "node:path";
 import { detectFramework, type Framework } from "./detect-framework.js";
 import { loadConfig } from "./config-loader.js";
 import { isRuleEnabled } from "./rule-filter.js";
+import {
+  isContractCheckable,
+  runContractChecks,
+  type ContractFile,
+} from "./contract-checks.js";
 
 // ---------------------------------------------------------------------------
 // WCAG criterion map: ESLint rule ID → WCAG success criterion
@@ -220,51 +225,14 @@ async function main(): Promise<void> {
   // 3. Get staged files
   const allStaged = getStagedFiles();
   const relevantFiles = filterStagedFiles(allStaged, framework);
+  // Contract checks also cover stylesheets, which ESLint never sees
+  const contractFiles = allStaged.filter(isContractCheckable);
 
-  if (relevantFiles.length === 0) {
+  if (relevantFiles.length === 0 && contractFiles.length === 0) {
     // Nothing relevant staged — pass silently
     process.exit(0);
   }
 
-  // 4. Run ESLint programmatically
-  let ESLint: typeof import("eslint").ESLint;
-  try {
-    // eslint must be in the developer's project node_modules
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    ESLint = (require("eslint") as { ESLint: typeof import("eslint").ESLint })
-      .ESLint;
-  } catch {
-    process.stderr.write(
-      "a11y-sdk pre-commit: ESLint not found. Run `bash .a11y/scripts/setup.sh` first.\n",
-    );
-    process.exit(2);
-  }
-
-  const configFile = getEslintConfigPath(framework, scriptDir);
-  let eslint: import("eslint").ESLint;
-  try {
-    eslint = new ESLint({
-      overrideConfigFile: configFile,
-      overrideConfig: [],
-    });
-  } catch (err) {
-    process.stderr.write(
-      `a11y-sdk pre-commit: ESLint error — ${String(err)}\n`,
-    );
-    process.exit(2);
-  }
-
-  let results: import("eslint").ESLint.LintResult[];
-  try {
-    results = await eslint.lintFiles(relevantFiles);
-  } catch (err) {
-    process.stderr.write(
-      `a11y-sdk pre-commit: ESLint error — ${String(err)}\n`,
-    );
-    process.exit(2);
-  }
-
-  // 5. Collect and filter violations
   const violations: Array<{
     file: string;
     line: number;
@@ -273,18 +241,72 @@ async function main(): Promise<void> {
     wcag: string;
   }> = [];
 
-  for (const result of results) {
-    for (const msg of result.messages) {
-      if (!msg.ruleId) continue;
-      if (!isRuleEnabled(msg.ruleId, config)) continue;
-
-      violations.push({
-        file: result.filePath,
-        line: msg.line,
-        ruleId: msg.ruleId,
-        message: msg.message,
-        wcag: WCAG_MAP[msg.ruleId] ?? "WCAG",
+  // 4. Source-level contract checks (no ESLint required)
+  const contractInputs: ContractFile[] = [];
+  for (const path of contractFiles) {
+    try {
+      contractInputs.push({
+        path,
+        content: readFileSync(join(projectRoot, path), "utf8"),
       });
+    } catch {
+      // File unreadable (e.g. racing deletion) — skip
+    }
+  }
+  violations.push(...runContractChecks(contractInputs, config));
+
+  // 5. Run ESLint programmatically on framework files
+  if (relevantFiles.length > 0) {
+    let ESLint: typeof import("eslint").ESLint;
+    try {
+      // eslint must be in the developer's project node_modules
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      ESLint = (require("eslint") as { ESLint: typeof import("eslint").ESLint })
+        .ESLint;
+    } catch {
+      process.stderr.write(
+        "a11y-sdk pre-commit: ESLint not found. Run `bash .a11y/scripts/setup.sh` first.\n",
+      );
+      process.exit(2);
+    }
+
+    const configFile = getEslintConfigPath(framework, scriptDir);
+    let eslint: import("eslint").ESLint;
+    try {
+      eslint = new ESLint({
+        overrideConfigFile: configFile,
+        overrideConfig: [],
+      });
+    } catch (err) {
+      process.stderr.write(
+        `a11y-sdk pre-commit: ESLint error — ${String(err)}\n`,
+      );
+      process.exit(2);
+    }
+
+    let results: import("eslint").ESLint.LintResult[];
+    try {
+      results = await eslint.lintFiles(relevantFiles);
+    } catch (err) {
+      process.stderr.write(
+        `a11y-sdk pre-commit: ESLint error — ${String(err)}\n`,
+      );
+      process.exit(2);
+    }
+
+    for (const result of results) {
+      for (const msg of result.messages) {
+        if (!msg.ruleId) continue;
+        if (!isRuleEnabled(msg.ruleId, config)) continue;
+
+        violations.push({
+          file: result.filePath,
+          line: msg.line,
+          ruleId: msg.ruleId,
+          message: msg.message,
+          wcag: WCAG_MAP[msg.ruleId] ?? "WCAG",
+        });
+      }
     }
   }
 
