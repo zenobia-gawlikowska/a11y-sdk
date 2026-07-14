@@ -33,17 +33,25 @@ const tempDirs: string[] = [];
  */
 function makeProject(opts: {
   rules?: Partial<Record<string, boolean>>;
-  /** npm package name that identifies the framework, e.g. "react" or "@angular/core" */
-  frameworkPkg?: string;
+  /** npm package name that identifies the framework, e.g. "react" or "@angular/core".
+   *  Pass null for a project with no framework dependency (detection → "unknown"). */
+  frameworkPkg?: string | null;
 } = {}): string {
   const root = initGitProject("a11y-int-");
   tempDirs.push(root);
 
   // Write package.json so detectFramework returns the right value (avoids TUI prompt)
-  const pkg = opts.frameworkPkg ?? "react";
+  const pkg = opts.frameworkPkg === undefined ? "react" : opts.frameworkPkg;
   writeFileSync(
     join(root, "package.json"),
-    JSON.stringify({ name: "test-project", dependencies: { [pkg]: "^1.0.0" } }, null, 2),
+    JSON.stringify(
+      {
+        name: "test-project",
+        dependencies: pkg === null ? {} : { [pkg]: "^1.0.0" },
+      },
+      null,
+      2,
+    ),
     "utf8",
   );
 
@@ -76,14 +84,21 @@ function stageFile(root: string, relPath: string, content: string): void {
 
 /**
  * Run toolkit/scripts/pre-commit.cjs as a child process with cwd = root.
- * Returns status code and stderr output.
+ * stdin is a closed pipe (input: ""), matching IDE/GUI/CI commits where the
+ * hook has no terminal to prompt on.
+ * Returns status code and stdout/stderr output.
  */
-function runHook(root: string): { status: number | null; stderr: string } {
+function runHook(root: string): {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+} {
   const result = spawnSync("node", [SCRIPT], {
     cwd: root,
     encoding: "utf8",
+    input: "",
   });
-  return { status: result.status, stderr: result.stderr };
+  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
 afterEach(() => {
@@ -216,6 +231,70 @@ export function Form() {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("a11y-sdk/autocomplete-required");
     expect(result.stderr).toContain('autocomplete="email"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R6 — non-interactive commits with an undetectable framework
+// ---------------------------------------------------------------------------
+
+describe("R6 — unknown framework, no TTY (IDE/GUI/CI commits)", () => {
+  it("contract checks still run and block: role=dialog without aria-modal in .html exits 1", () => {
+    const root = makeProject({ frameworkPkg: null });
+    stageFile(root, "modal.html", `<div role="dialog"><p>hi</p></div>`);
+    const result = runHook(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("a11y-sdk/dialog-contract");
+  });
+
+  it("ESLint layer is skipped with an explicit warning, not silently", () => {
+    const root = makeProject({ frameworkPkg: null });
+    stageFile(root, "src/Pic.jsx", `export const Pic = () => <img src="x.png" />;`);
+    const result = runHook(root);
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("framework not detected");
+    expect(result.stderr).toContain("SKIPPED");
+    expect(result.stderr).toContain("a11y.config.json");
+  });
+
+  it("does not hang waiting for a framework answer (terminates without input)", () => {
+    const root = makeProject({ frameworkPkg: null });
+    stageFile(root, "src/Pic.jsx", `export const Pic = () => <img src="x.png" />;`);
+    // runHook uses spawnSync with closed stdin — reaching this assertion at
+    // all means the hook terminated instead of waiting on the prompt.
+    const result = runHook(root);
+    expect(result.status).not.toBeNull();
+    expect(result.stderr).not.toContain("Enter number");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R7 — output hygiene
+// ---------------------------------------------------------------------------
+
+describe("R7 — output hygiene", () => {
+  it("writes nothing to stdout (stray framework-name print regression)", () => {
+    const root = makeProject();
+    stageFile(root, "src/Button.tsx", `
+export function Button() {
+  return <img src="photo.jpg" />;
+}
+`);
+    const result = runHook(root);
+    expect(result.stdout).toBe("");
+  });
+
+  it("ESLint violations are reported with project-relative paths", () => {
+    const root = makeProject();
+    stageFile(root, "src/Button.tsx", `
+export function Button() {
+  return <img src="photo.jpg" />;
+}
+`);
+    const result = runHook(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("src/Button.tsx");
+    expect(result.stderr).not.toContain(root);
   });
 });
 

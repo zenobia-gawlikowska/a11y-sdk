@@ -28,7 +28,7 @@ bash .a11y/scripts/setup.sh
 
 `setup.sh` does four things:
 1. Wires the git pre-commit hook (`git config core.hooksPath .a11y/hooks`)
-2. Detects your framework (React, Vue, Svelte, Angular) and installs the right ESLint a11y plugin
+2. Detects your framework (React, Vue, Svelte, Angular) and installs the right ESLint a11y plugin — plus ESLint itself if your package manager didn't pull it in as a peer dependency (yarn classic never does)
 3. Patches your `CLAUDE.md` / `.cursorrules` / `AGENTS.md` to point your AI at the a11y rules
 4. Reports what it did
 
@@ -54,7 +54,7 @@ The hook runs automatically on every `git commit`. It:
 4. Outputs violations with filename, line, rule ID, and WCAG criterion
 5. Exits non-zero on violations (blocks the commit)
 
-If your framework isn't detected automatically, the hook prompts once and saves your choice to `.a11y/config/a11y.config.json`.
+If your framework isn't detected automatically, the hook prompts once and saves your choice to `.a11y/config/a11y.config.json`. When there's no terminal to prompt on (IDE/GUI commits, CI), it skips only the ESLint layer with an explicit warning instead — the contract checks always run — and you can set `"framework"` in `.a11y/config/a11y.config.json` to enable ESLint there too.
 
 ### Source contract checks
 

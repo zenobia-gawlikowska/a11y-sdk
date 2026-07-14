@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { createInterface } from "node:readline";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { detectFramework, type Framework } from "./detect-framework.js";
 import { loadConfig } from "./config-loader.js";
 import { isRuleEnabled } from "./rule-filter.js";
@@ -118,6 +118,18 @@ function getExtensionsForFramework(fw: Framework): string[] {
   }
 }
 
+/** Union of every framework's extensions — files that would go to ESLint
+ * under SOME framework, used to decide whether framework resolution is
+ * needed at all before any prompt can fire. */
+const ALL_FRAMEWORK_EXTENSIONS = [
+  ".jsx",
+  ".tsx",
+  ".vue",
+  ".svelte",
+  ".html",
+  ".ts",
+];
+
 function filterStagedFiles(files: string[], framework: Framework): string[] {
   const exts = getExtensionsForFramework(framework);
   return files.filter((f) => exts.some((ext) => f.endsWith(ext)));
@@ -156,11 +168,19 @@ async function promptFramework(): Promise<Framework> {
     });
     process.stderr.write("\nEnter number (1-4): ");
 
+    let answered = false;
     rl.once("line", (line) => {
+      answered = true;
       rl.close();
       const index = parseInt(line.trim(), 10) - 1;
       const chosen = options[index] ?? "react";
       resolvePromise(chosen);
+    });
+    // EOF before an answer (stdin closed mid-prompt) — fall back to the
+    // default instead of leaving the promise dangling, which would let the
+    // process exit 0 with every check silently skipped.
+    rl.once("close", () => {
+      if (!answered) resolvePromise("react");
     });
   });
 }
@@ -202,7 +222,44 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  // 2. Detect framework
+  // 2. Get staged files
+  const allStaged = getStagedFiles();
+  // Contract checks also cover stylesheets, which ESLint never sees
+  const contractFiles = allStaged.filter(isContractCheckable);
+  const maybeFrameworkFiles = allStaged.filter((f) =>
+    ALL_FRAMEWORK_EXTENSIONS.some((ext) => f.endsWith(ext)),
+  );
+
+  if (contractFiles.length === 0 && maybeFrameworkFiles.length === 0) {
+    // Nothing relevant staged — pass silently
+    process.exit(0);
+  }
+
+  const violations: Array<{
+    file: string;
+    line: number;
+    ruleId: string;
+    message: string;
+    wcag: string;
+  }> = [];
+
+  // 3. Source-level contract checks — these need neither ESLint nor a
+  // resolved framework, so they run before framework resolution can prompt,
+  // fail, or skip.
+  const contractInputs: ContractFile[] = [];
+  for (const path of contractFiles) {
+    try {
+      contractInputs.push({
+        path,
+        content: readFileSync(join(projectRoot, path), "utf8"),
+      });
+    } catch {
+      // File unreadable (e.g. racing deletion) — skip
+    }
+  }
+  violations.push(...runContractChecks(contractInputs, config));
+
+  // 4. Detect framework (only matters for the ESLint layer)
   let framework = detectFramework(projectRoot);
 
   // Check if framework was previously persisted in config
@@ -217,43 +274,24 @@ async function main(): Promise<void> {
     // Ignore — use detected value
   }
 
-  if (framework === "unknown") {
-    framework = await promptFramework();
-    persistFrameworkChoice(projectRoot, framework);
-  }
-
-  // 3. Get staged files
-  const allStaged = getStagedFiles();
-  const relevantFiles = filterStagedFiles(allStaged, framework);
-  // Contract checks also cover stylesheets, which ESLint never sees
-  const contractFiles = allStaged.filter(isContractCheckable);
-
-  if (relevantFiles.length === 0 && contractFiles.length === 0) {
-    // Nothing relevant staged — pass silently
-    process.exit(0);
-  }
-
-  const violations: Array<{
-    file: string;
-    line: number;
-    ruleId: string;
-    message: string;
-    wcag: string;
-  }> = [];
-
-  // 4. Source-level contract checks (no ESLint required)
-  const contractInputs: ContractFile[] = [];
-  for (const path of contractFiles) {
-    try {
-      contractInputs.push({
-        path,
-        content: readFileSync(join(projectRoot, path), "utf8"),
-      });
-    } catch {
-      // File unreadable (e.g. racing deletion) — skip
+  let eslintSkippedWarning: string | null = null;
+  if (framework === "unknown" && maybeFrameworkFiles.length > 0) {
+    if (process.stdin.isTTY) {
+      framework = await promptFramework();
+      persistFrameworkChoice(projectRoot, framework);
+    } else {
+      // No terminal to prompt on (IDE/GUI commit, CI). Never hang or
+      // silently pass — skip only the ESLint layer, say so, and point at
+      // the config key that makes the choice permanent.
+      eslintSkippedWarning =
+        "a11y-sdk pre-commit: framework not detected and no terminal to ask on — " +
+        "ESLint a11y checks were SKIPPED for the staged files (contract checks still ran).\n" +
+        'Set "framework" ("react" | "vue" | "svelte" | "angular") in ' +
+        ".a11y/config/a11y.config.json to enable them.\n";
     }
   }
-  violations.push(...runContractChecks(contractInputs, config));
+
+  const relevantFiles = filterStagedFiles(allStaged, framework);
 
   // 5. Run ESLint programmatically on framework files
   if (relevantFiles.length > 0) {
@@ -300,7 +338,9 @@ async function main(): Promise<void> {
         if (!isRuleEnabled(msg.ruleId, config)) continue;
 
         violations.push({
-          file: result.filePath,
+          // Contract checks report paths relative to the project root;
+          // match that instead of ESLint's absolute paths.
+          file: relative(projectRoot, result.filePath),
           line: msg.line,
           ruleId: msg.ruleId,
           message: msg.message,
@@ -308,6 +348,10 @@ async function main(): Promise<void> {
         });
       }
     }
+  }
+
+  if (eslintSkippedWarning) {
+    process.stderr.write(`\n⚠ ${eslintSkippedWarning}\n`);
   }
 
   if (violations.length === 0) {

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 export type Framework = "react" | "vue" | "svelte" | "angular" | "unknown";
 
@@ -40,7 +40,13 @@ export function detectFramework(projectRoot: string): Framework {
 }
 
 // CLI entry point — used by setup.sh: node detect-framework.cjs <projectRoot>
-if (require.main === module) {
+// The argv[1] check matters because this file is also bundled into
+// pre-commit.cjs, where `require.main === module` is true for the bundle
+// entry and would print the framework name on every hook run.
+if (
+  require.main === module &&
+  basename(process.argv[1] ?? "").startsWith("detect-framework")
+) {
   const projectRoot = process.argv[2] ?? process.cwd();
   process.stdout.write(detectFramework(projectRoot) + "\n");
 }

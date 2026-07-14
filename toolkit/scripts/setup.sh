@@ -82,21 +82,35 @@ info "Detected framework: ${FRAMEWORK}"
 # ---------------------------------------------------------------------------
 install_deps() {
   case "${PM}" in
-    pnpm) pnpm add --save-dev "$@" ;;
-    yarn) yarn add --dev "$@" ;;
-    bun)  bun add --dev "$@" ;;
-    *)    npm install --save-dev "$@" ;;
+    pnpm) (cd "${PROJECT_ROOT}" && pnpm add --save-dev "$@") ;;
+    yarn) (cd "${PROJECT_ROOT}" && yarn add --dev "$@") ;;
+    bun)  (cd "${PROJECT_ROOT}" && bun add --dev "$@") ;;
+    *)    (cd "${PROJECT_ROOT}" && npm install --save-dev "$@") ;;
   esac
+}
+
+# The a11y plugins declare eslint as a peer dependency. npm >= 7 auto-installs
+# peers, but yarn classic never does and pnpm can be configured not to — and
+# without eslint the pre-commit hook dead-ends with "run setup.sh first".
+ensure_eslint() {
+  if (cd "${PROJECT_ROOT}" && node -e "require.resolve('eslint')" 2>/dev/null); then
+    return 0
+  fi
+  warn "ESLint is not installed (your package manager did not auto-install the plugin's peer dependency)."
+  info "Installing eslint@^9 …"
+  install_deps "eslint@^9"
 }
 
 case "${FRAMEWORK}" in
   react)
     info "Installing eslint-plugin-jsx-a11y@^6.9.0 …"
     install_deps "eslint-plugin-jsx-a11y@^6.9.0"
+    ensure_eslint
     ;;
   vue)
     info "Installing eslint-plugin-vuejs-accessibility@^2.3.0 eslint-plugin-vue …"
     install_deps "eslint-plugin-vuejs-accessibility@^2.3.0" "eslint-plugin-vue"
+    ensure_eslint
     ;;
   svelte)
     # Svelte plugin v3 requires Node >= 18.20.4
@@ -111,10 +125,12 @@ case "${FRAMEWORK}" in
     fi
     info "Installing eslint-plugin-svelte@^3.0.0 …"
     install_deps "eslint-plugin-svelte@^3.0.0"
+    ensure_eslint
     ;;
   angular)
     info "Installing @angular-eslint/eslint-plugin-template@^18.0.0 …"
     install_deps "@angular-eslint/eslint-plugin-template@^18.0.0"
+    ensure_eslint
     ;;
   unknown)
     warn "Framework not detected. Install the appropriate ESLint a11y plugin manually:"
