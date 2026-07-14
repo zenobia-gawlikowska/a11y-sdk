@@ -2,7 +2,7 @@
   "version": 1,
   "description": "Machine-readable enforcement map for the rules in context.md. Every rule is owned by one or more deterministic layers; 'llm' marks the judgment that remains after the scripts have run. AI assistants: never assert that a rule with a deterministic owner passes or fails by reading code — run the owning checker and report its output.",
   "layers": {
-    "lint": "Framework ESLint a11y plugin, run by the pre-commit hook on staged files (scripts/pre-commit.cjs).",
+    "lint": "Framework ESLint a11y plugin plus built-in a11y-sdk source contract checks, run by the pre-commit hook on staged files (scripts/pre-commit.cjs).",
     "axe": "axe-core runtime scan: node .a11y/scripts/audit.cjs <url>",
     "behave": "Behavioral recipes (keyboard, focus, reflow): node .a11y/scripts/behave.cjs <url>",
     "llm": "LLM or human judgment at generation/review time — cannot be automated."
@@ -33,7 +33,7 @@
       "id": "1.3.5",
       "title": "Identify Input Purpose",
       "enforcement": ["lint", "behave", "llm"],
-      "checkers": ["lint:autocomplete-valid", "behave:autocomplete"],
+      "checkers": ["lint:autocomplete-valid", "lint:a11y-sdk/autocomplete-required", "behave:autocomplete"],
       "llmJudgment": "Is the chosen autocomplete token the semantically correct one for the field?"
     },
     {
@@ -53,9 +53,9 @@
     {
       "id": "1.4.4",
       "title": "Resize Text",
-      "enforcement": ["behave", "llm"],
-      "checkers": ["behave:zoom-200"],
-      "llmJudgment": "Source review: are font sizes authored in rem/em rather than px?"
+      "enforcement": ["lint", "behave", "llm"],
+      "checkers": ["lint:a11y-sdk/no-px-font-size", "behave:zoom-200"],
+      "llmJudgment": "Font sizes computed at runtime (dynamic style objects, CSS-in-JS templates) escape the static px check."
     },
     {
       "id": "1.4.10",
@@ -187,7 +187,7 @@
       "id": "4.1.2",
       "title": "Name, Role, Value",
       "enforcement": ["lint", "axe", "behave", "llm"],
-      "checkers": ["lint:aria-props", "lint:aria-role", "lint:role-has-required-aria-props", "axe:aria-valid-attr", "axe:aria-valid-attr-value", "axe:aria-required-attr", "axe:button-name", "behave:disclosure", "behave:dialog"],
+      "checkers": ["lint:aria-props", "lint:aria-role", "lint:role-has-required-aria-props", "lint:a11y-sdk/dialog-contract", "lint:a11y-sdk/expanded-controls", "axe:aria-valid-attr", "axe:aria-valid-attr-value", "axe:aria-required-attr", "axe:button-name", "behave:disclosure", "behave:dialog"],
       "llmJudgment": "Does a custom widget expose ALL of its states, not just the ones linters can see declared?"
     },
     {
@@ -201,14 +201,14 @@
   "patterns": [
     {
       "id": "modal-dialog",
-      "enforcement": ["behave"],
-      "checkers": ["behave:dialog"],
+      "enforcement": ["lint", "behave"],
+      "checkers": ["lint:a11y-sdk/dialog-contract", "behave:dialog"],
       "llmJudgment": "Nothing — the full contract (aria-modal, name, focus trap, Escape, focus restore) is script-verified. Pass --dialog-trigger when auto-detection can't open it."
     },
     {
       "id": "form",
       "enforcement": ["lint", "axe", "behave", "llm"],
-      "checkers": ["lint:label-has-associated-control", "axe:label", "behave:autocomplete"],
+      "checkers": ["lint:label-has-associated-control", "lint:a11y-sdk/autocomplete-required", "axe:label", "behave:autocomplete"],
       "llmJudgment": "Error-state wiring on real validation; fieldset/legend grouping appropriateness."
     },
     {

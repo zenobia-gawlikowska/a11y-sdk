@@ -159,6 +159,67 @@ export function Card() {
 });
 
 // ---------------------------------------------------------------------------
+// R5 — source-level contract checks run at commit time
+// ---------------------------------------------------------------------------
+
+describe("R5 — contract checks catch static contract violations", () => {
+  it("role=dialog without aria-modal exits 1 and reports a11y-sdk/dialog-contract", () => {
+    const root = makeProject();
+    stageFile(root, "src/Modal.tsx", `
+export function Modal() {
+  return <div role="dialog" aria-labelledby="modal-title"><h2 id="modal-title">Hi</h2></div>;
+}
+`);
+    const result = runHook(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("a11y-sdk/dialog-contract");
+    expect(result.stderr).toContain("4.1.2");
+  });
+
+  it("a complete dialog exits 0", () => {
+    const root = makeProject();
+    stageFile(root, "src/Modal.tsx", `
+export function Modal() {
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <h2 id="modal-title">Hi</h2>
+    </div>
+  );
+}
+`);
+    const result = runHook(root);
+    expect(result.status).toBe(0);
+  });
+
+  it("staged stylesheet with px font-size exits 1 without needing ESLint", () => {
+    const root = makeProject();
+    stageFile(root, "src/styles/card.css", `.card { font-size: 14px; }`);
+    const result = runHook(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("a11y-sdk/no-px-font-size");
+    expect(result.stderr).toContain("1.4.4");
+  });
+
+  it("personal-data input without autocomplete exits 1 with the suggested token", () => {
+    const root = makeProject();
+    stageFile(root, "src/Form.tsx", `
+export function Form() {
+  return (
+    <label>
+      Email
+      <input type="email" name="contact-email" />
+    </label>
+  );
+}
+`);
+    const result = runHook(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("a11y-sdk/autocomplete-required");
+    expect(result.stderr).toContain('autocomplete="email"');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // R2 — broken config exits 2 with a11y-sdk prefix
 // ---------------------------------------------------------------------------
 

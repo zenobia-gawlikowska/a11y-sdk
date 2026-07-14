@@ -19,7 +19,7 @@ findings. The machine-readable version of this map is `.a11y/rules/registry.json
 
 | Layer | Tool | When it runs |
 |---|---|---|
-| `lint` | framework ESLint a11y plugin | pre-commit hook, on staged files |
+| `lint` | framework ESLint a11y plugin + built-in contract checks | pre-commit hook, on staged files |
 | `axe` | `node .a11y/scripts/audit.cjs <url>` | on demand |
 | `behave` | `node .a11y/scripts/behave.cjs <url>` | on demand |
 | judgment | LLM / human review | generation & review time |
@@ -29,10 +29,10 @@ findings. The machine-readable version of this map is `.a11y/rules/registry.json
 | 1.1.1 Non-text Content | lint + axe | alt text meaningful? decorative correctly hidden? |
 | 1.3.1 Info and Relationships | lint + axe + behave `nav-labels`, `table` | semantics match visual structure |
 | 1.3.2 Meaningful Sequence | — | DOM order vs. reading order |
-| 1.3.5 Identify Input Purpose | lint (token validity) + behave `autocomplete` | correct token choice |
+| 1.3.5 Identify Input Purpose | lint (token validity; missing autocomplete on personal-data inputs) + behave `autocomplete` | correct token choice |
 | 1.4.1 Use of Color | — | color-only signalling |
 | 1.4.3 Contrast (Minimum) | axe | — |
-| 1.4.4 Resize Text | behave `zoom-200` | px→rem source review |
+| 1.4.4 Resize Text | lint (px font sizes) + behave `zoom-200` | runtime-computed px sizes |
 | 1.4.10 Reflow | behave `reflow-320` | — |
 | 1.4.11 Non-text Contrast | — | component & focus-ring contrast |
 | 1.4.13 Content on Hover/Focus | — | tooltip behavior |
@@ -51,7 +51,7 @@ findings. The machine-readable version of this map is `.a11y/rules/registry.json
 | 3.3.1 Error Identification | — | error wiring on real validation |
 | 3.3.2 Labels or Instructions | lint + axe | label describes purpose |
 | 4.1.1 Parsing | axe | — |
-| 4.1.2 Name, Role, Value | lint + axe + behave `disclosure`, `dialog` | state completeness of custom widgets |
+| 4.1.2 Name, Role, Value | lint (incl. dialog & aria-expanded contracts) + axe + behave `disclosure`, `dialog` | state completeness of custom widgets |
 | 4.1.3 Status Messages | behave `live-region-static` (partial) | role choice; injection timing |
 
 The full prose rules below remain the **generation-time guidance** — apply
@@ -211,7 +211,9 @@ the dialog.
 **Deterministic check:** `node .a11y/scripts/behave.cjs <url> --recipes dialog`
 verifies aria-modal, accessible name, focus trap, Escape-to-close, and focus
 restore. If auto-detection can't open the dialog, pass
-`--dialog-trigger "<css selector>"`.
+`--dialog-trigger "<css selector>"`. The pre-commit hook already flags
+`role="dialog"` markup missing `aria-modal` or an accessible name at commit
+time.
 
 ---
 
@@ -235,9 +237,9 @@ restore. If auto-detection can't open the dialog, pass
 **Implementation pointer:** see `rules/form-labeling.md`.
 
 **Deterministic check:** labels are covered by the pre-commit lint and
-`audit.cjs`; `behave.cjs --recipes autocomplete` flags personal-data inputs
-missing `autocomplete`. Error-state wiring on real validation remains a
-judgment check.
+`audit.cjs`; personal-data inputs missing `autocomplete` are flagged both by
+the pre-commit hook (statically) and `behave.cjs --recipes autocomplete`
+(rendered). Error-state wiring on real validation remains a judgment check.
 
 ---
 
