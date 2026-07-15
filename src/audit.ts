@@ -143,6 +143,36 @@ export async function runAxeScan(page: Page, level: "AA" | "AAA"): Promise<AxeRe
   return { violations: axeResults.violations as AxeViolation[] };
 }
 
+/** Machine-readable projection of a violation (used by `--json` / callers). */
+export interface JsonViolation {
+  ruleId: string;
+  impact: string;
+  wcag: string | null;
+  criterion: string | null;
+  nodes: number;
+  selectors: string[];
+}
+
+/** Format axe results as a stable JSON envelope for programmatic callers. */
+export function formatJson(results: AxeResults): string {
+  const violations: JsonViolation[] = results.violations.map((v) => {
+    const wcag = RULE_TO_WCAG[v.id];
+    return {
+      ruleId: v.id,
+      impact: v.impact ?? "minor",
+      wcag: wcag ? `${wcag.criterion} ${wcag.title}` : null,
+      criterion: wcag ? wcag.criterion : null,
+      nodes: v.nodes.length,
+      selectors: v.nodes.map((n) => n.target.join(", ")),
+    };
+  });
+  return JSON.stringify(
+    { violationCount: violations.length, violations },
+    null,
+    2,
+  );
+}
+
 /** Format axe results into the human-readable grouped output. */
 export function formatResults(results: AxeResults): string {
   const { violations } = results;
@@ -176,11 +206,27 @@ export function formatResults(results: AxeResults): string {
 
 // --- CLI entrypoint ---
 
-async function main(): Promise<void> {
-  // Playwright availability check — runs only when CLI is invoked, not when imported
+export interface AuditOptions {
+  level: "AA" | "AAA";
+  /** Emit the machine-readable JSON envelope instead of grouped prose. */
+  json: boolean;
+}
+
+/**
+ * Run the axe-core audit against a URL and print results.
+ * Returns the process exit code (0 clean, 1 violations, 2 usage/runtime, 3 no Playwright).
+ * Shared by the standalone toolkit script and the `a11y-sdk audit` CLI subcommand.
+ */
+export async function runAudit(
+  urlArg: string | undefined,
+  opts: AuditOptions,
+): Promise<number> {
+  // Availability check via dynamic import so this works both as a CJS toolkit
+  // script and bundled into the ESM CLI (where `require` is undefined).
+  let chromium: typeof import("playwright").chromium;
   try {
-    require.resolve("playwright");
-    require.resolve("@axe-core/playwright");
+    ({ chromium } = await import("playwright"));
+    await import("@axe-core/playwright"); // availability check; runAxeScan imports it
   } catch {
     console.error(`
 a11y-sdk audit requires Playwright. Install it in your project:
@@ -190,18 +236,12 @@ a11y-sdk audit requires Playwright. Install it in your project:
 
 Then re-run the audit.
 `);
-    process.exit(3);
+    return 3;
   }
 
-  const args = process.argv.slice(2);
-  const urlArg = args.find((a) => !a.startsWith("--"));
-  const level = (args.find((a) => a.startsWith("--level="))?.split("=")[1] ??
-    args[args.indexOf("--level") + 1] ??
-    "AA") as "AA" | "AAA";
-
   if (!urlArg) {
-    console.error("Usage: node audit.cjs <url> [--level AA|AAA]");
-    process.exit(2);
+    console.error("Usage: audit <url> [--level AA|AAA] [--json]");
+    return 2;
   }
 
   let url: URL;
@@ -209,18 +249,15 @@ Then re-run the audit.
     url = new URL(urlArg);
   } catch {
     console.error(`Invalid URL: ${urlArg}`);
-    process.exit(2);
+    return 2;
   }
-
-  // Dynamic import — only reached if require.resolve checks above passed
-  const { chromium } = await import("playwright");
 
   let browser;
   try {
     browser = await chromium.launch({ headless: true });
   } catch {
     console.error(`Failed to launch Chromium. Run: npx playwright install chromium`);
-    process.exit(2);
+    return 2;
   }
 
   // AxeBuilder requires a page created via an explicit context — browser.newPage()'s
@@ -234,43 +271,55 @@ Then re-run the audit.
     if (!response || !response.ok()) {
       console.error(`Page unreachable or returned error: ${url}`);
       await browser.close();
-      process.exit(2);
+      return 2;
     }
   } catch {
     console.error(`Could not reach ${url} — is the dev server running?`);
     await browser.close();
-    process.exit(2);
+    return 2;
   }
 
   let rawResults: AxeResults;
   try {
-    rawResults = await runAxeScan(page, level);
+    rawResults = await runAxeScan(page, opts.level);
   } catch (err: unknown) {
     console.error("Audit error:", err);
     await browser.close();
-    process.exit(2);
+    return 2;
   }
 
   await browser.close();
 
-  // Write JSON results
+  // Write JSON results next to the .a11y install if one exists.
   const resultsDir = path.join(process.cwd(), ".a11y");
   if (fs.existsSync(resultsDir)) {
     fs.writeFileSync(path.join(resultsDir, "audit-results.json"), JSON.stringify(rawResults, null, 2));
   }
 
-  const output = formatResults(rawResults);
-  console.log(output);
+  console.log(opts.json ? formatJson(rawResults) : formatResults(rawResults));
 
-  process.exit(rawResults.violations.length > 0 ? 1 : 0);
+  return rawResults.violations.length > 0 ? 1 : 0;
 }
 
-// Only run when executed directly (not when imported by tests)
-// Works for both ESM (import.meta.url) and CJS (require.main)
-const isMain =
-  typeof require !== "undefined"
-    ? require.main === module
-    : process.argv[1]?.endsWith("audit.ts") || process.argv[1]?.endsWith("audit.cjs");
+/** Parse audit argv (shared by the toolkit script + CLI subcommand). */
+export function parseAuditArgs(args: string[]): { url: string | undefined; opts: AuditOptions } {
+  const url = args.find((a) => !a.startsWith("--"));
+  const level = (args.find((a) => a.startsWith("--level="))?.split("=")[1] ??
+    (args.includes("--level") ? args[args.indexOf("--level") + 1] : undefined) ??
+    "AA") as "AA" | "AAA";
+  const json = args.includes("--json");
+  return { url, opts: { level, json } };
+}
+
+async function main(): Promise<void> {
+  const { url, opts } = parseAuditArgs(process.argv.slice(2));
+  process.exit(await runAudit(url, opts));
+}
+
+// Run only when invoked as the standalone toolkit script. Detection is argv-based
+// (not require.main/module) so this module stays inert when bundled into the ESM CLI.
+const entry = process.argv[1] ?? "";
+const isMain = entry.endsWith("audit.ts") || entry.endsWith("audit.cjs");
 
 if (isMain) {
   main().catch((err) => {

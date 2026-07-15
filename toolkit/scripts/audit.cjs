@@ -32,7 +32,10 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var audit_exports = {};
 __export(audit_exports, {
   BEST_PRACTICE_RULES: () => BEST_PRACTICE_RULES,
+  formatJson: () => formatJson,
   formatResults: () => formatResults,
+  parseAuditArgs: () => parseAuditArgs,
+  runAudit: () => runAudit,
   runAxeScan: () => runAxeScan
 });
 module.exports = __toCommonJS(audit_exports);
@@ -123,6 +126,24 @@ async function runAxeScan(page, level) {
   }).analyze();
   return { violations: axeResults.violations };
 }
+function formatJson(results) {
+  const violations = results.violations.map((v) => {
+    const wcag = RULE_TO_WCAG[v.id];
+    return {
+      ruleId: v.id,
+      impact: v.impact ?? "minor",
+      wcag: wcag ? `${wcag.criterion} ${wcag.title}` : null,
+      criterion: wcag ? wcag.criterion : null,
+      nodes: v.nodes.length,
+      selectors: v.nodes.map((n) => n.target.join(", "))
+    };
+  });
+  return JSON.stringify(
+    { violationCount: violations.length, violations },
+    null,
+    2
+  );
+}
 function formatResults(results) {
   const { violations } = results;
   if (violations.length === 0) return "No accessibility violations found.";
@@ -145,10 +166,11 @@ function formatResults(results) {
   }
   return lines.join("\n").trimEnd();
 }
-async function main() {
+async function runAudit(urlArg, opts) {
+  let chromium;
   try {
-    require.resolve("playwright");
-    require.resolve("@axe-core/playwright");
+    ({ chromium } = await import("playwright"));
+    await import("@axe-core/playwright");
   } catch {
     console.error(`
 a11y-sdk audit requires Playwright. Install it in your project:
@@ -158,29 +180,25 @@ a11y-sdk audit requires Playwright. Install it in your project:
 
 Then re-run the audit.
 `);
-    process.exit(3);
+    return 3;
   }
-  const args = process.argv.slice(2);
-  const urlArg = args.find((a) => !a.startsWith("--"));
-  const level = args.find((a) => a.startsWith("--level="))?.split("=")[1] ?? args[args.indexOf("--level") + 1] ?? "AA";
   if (!urlArg) {
-    console.error("Usage: node audit.cjs <url> [--level AA|AAA]");
-    process.exit(2);
+    console.error("Usage: audit <url> [--level AA|AAA] [--json]");
+    return 2;
   }
   let url;
   try {
     url = new URL(urlArg);
   } catch {
     console.error(`Invalid URL: ${urlArg}`);
-    process.exit(2);
+    return 2;
   }
-  const { chromium } = await import("playwright");
   let browser;
   try {
     browser = await chromium.launch({ headless: true });
   } catch {
     console.error(`Failed to launch Chromium. Run: npx playwright install chromium`);
-    process.exit(2);
+    return 2;
   }
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -189,31 +207,41 @@ Then re-run the audit.
     if (!response || !response.ok()) {
       console.error(`Page unreachable or returned error: ${url}`);
       await browser.close();
-      process.exit(2);
+      return 2;
     }
   } catch {
     console.error(`Could not reach ${url} \u2014 is the dev server running?`);
     await browser.close();
-    process.exit(2);
+    return 2;
   }
   let rawResults;
   try {
-    rawResults = await runAxeScan(page, level);
+    rawResults = await runAxeScan(page, opts.level);
   } catch (err) {
     console.error("Audit error:", err);
     await browser.close();
-    process.exit(2);
+    return 2;
   }
   await browser.close();
   const resultsDir = import_node_path.default.join(process.cwd(), ".a11y");
   if (import_node_fs.default.existsSync(resultsDir)) {
     import_node_fs.default.writeFileSync(import_node_path.default.join(resultsDir, "audit-results.json"), JSON.stringify(rawResults, null, 2));
   }
-  const output = formatResults(rawResults);
-  console.log(output);
-  process.exit(rawResults.violations.length > 0 ? 1 : 0);
+  console.log(opts.json ? formatJson(rawResults) : formatResults(rawResults));
+  return rawResults.violations.length > 0 ? 1 : 0;
 }
-var isMain = typeof require !== "undefined" ? require.main === module : process.argv[1]?.endsWith("audit.ts") || process.argv[1]?.endsWith("audit.cjs");
+function parseAuditArgs(args) {
+  const url = args.find((a) => !a.startsWith("--"));
+  const level = args.find((a) => a.startsWith("--level="))?.split("=")[1] ?? (args.includes("--level") ? args[args.indexOf("--level") + 1] : void 0) ?? "AA";
+  const json = args.includes("--json");
+  return { url, opts: { level, json } };
+}
+async function main() {
+  const { url, opts } = parseAuditArgs(process.argv.slice(2));
+  process.exit(await runAudit(url, opts));
+}
+var entry = process.argv[1] ?? "";
+var isMain = entry.endsWith("audit.ts") || entry.endsWith("audit.cjs");
 if (isMain) {
   main().catch((err) => {
     console.error("Unexpected error:", err);
@@ -223,6 +251,9 @@ if (isMain) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   BEST_PRACTICE_RULES,
+  formatJson,
   formatResults,
+  parseAuditArgs,
+  runAudit,
   runAxeScan
 });

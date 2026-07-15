@@ -1,11 +1,14 @@
 {
   "name": "a11y-sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Accessibility toolkit for AI-assisted development workflows",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "a11y-sdk": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -14,11 +17,14 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "toolkit",
+    "recipes.json"
   ],
   "scripts": {
     "build": "tsup",
     "build:toolkit": "tsup --config tsup.config.ts",
+    "gen:recipes": "node dist/cli.js recipes --json > recipes.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
