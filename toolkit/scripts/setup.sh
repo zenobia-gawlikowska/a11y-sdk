@@ -101,6 +101,8 @@ ensure_eslint() {
   install_deps "eslint@^9"
 }
 
+# Version pins below MUST match FRAMEWORK_DEPS in src/recipes/r2-commit-gate.ts
+# (the CLI installer) — the two install paths must produce the same lint baseline.
 case "${FRAMEWORK}" in
   react)
     info "Installing eslint-plugin-jsx-a11y@^6.9.0 …"
@@ -108,8 +110,8 @@ case "${FRAMEWORK}" in
     ensure_eslint
     ;;
   vue)
-    info "Installing eslint-plugin-vuejs-accessibility@^2.3.0 eslint-plugin-vue …"
-    install_deps "eslint-plugin-vuejs-accessibility@^2.3.0" "eslint-plugin-vue"
+    info "Installing eslint-plugin-vuejs-accessibility@^2.5.0 eslint-plugin-vue …"
+    install_deps "eslint-plugin-vuejs-accessibility@^2.5.0" "eslint-plugin-vue"
     ensure_eslint
     ;;
   svelte)
@@ -128,16 +130,16 @@ case "${FRAMEWORK}" in
     ensure_eslint
     ;;
   angular)
-    info "Installing @angular-eslint/eslint-plugin-template@^18.0.0 …"
-    install_deps "@angular-eslint/eslint-plugin-template@^18.0.0"
+    info "Installing @angular-eslint/eslint-plugin-template@^19.0.0 @angular-eslint/template-parser@^19.0.0 …"
+    install_deps "@angular-eslint/eslint-plugin-template@^19.0.0" "@angular-eslint/template-parser@^19.0.0"
     ensure_eslint
     ;;
   unknown)
     warn "Framework not detected. Install the appropriate ESLint a11y plugin manually:"
     echo "  React:   ${PM} add --save-dev eslint-plugin-jsx-a11y@^6.9.0"
-    echo "  Vue:     ${PM} add --save-dev eslint-plugin-vuejs-accessibility@^2.3.0 eslint-plugin-vue"
+    echo "  Vue:     ${PM} add --save-dev eslint-plugin-vuejs-accessibility@^2.5.0 eslint-plugin-vue"
     echo "  Svelte:  ${PM} add --save-dev eslint-plugin-svelte@^3.0.0"
-    echo "  Angular: ${PM} add --save-dev @angular-eslint/eslint-plugin-template@^18.0.0"
+    echo "  Angular: ${PM} add --save-dev @angular-eslint/eslint-plugin-template@^19.0.0 @angular-eslint/template-parser@^19.0.0"
     ;;
 esac
 

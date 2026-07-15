@@ -25,6 +25,7 @@
     "build": "tsup",
     "build:toolkit": "tsup --config tsup.config.ts",
     "gen:recipes": "node dist/cli.js recipes --json > recipes.json",
+    "prepack": "tsup && node dist/cli.js recipes --json > recipes.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

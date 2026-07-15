@@ -4,8 +4,6 @@ import { dirname, join, relative } from "node:path";
 import type { Framework } from "../detect-framework.js";
 import type {
   Change,
-  DetectResult,
-  HookStrategy,
   Recipe,
   RecipeContext,
   RecipeResult,
@@ -22,6 +20,8 @@ import {
 } from "./util.js";
 
 // Framework → ESLint a11y plugin(s). Mirrors README's supported-frameworks table.
+// KEEP IN SYNC with the legacy installer's pins in toolkit/scripts/setup.sh
+// (Step 6) — bash can't import this module, so the mapping exists twice.
 const FRAMEWORK_DEPS: Record<Exclude<Framework, "unknown">, string[]> = {
   react: ["eslint-plugin-jsx-a11y@^6.9.0"],
   vue: ["eslint-plugin-vuejs-accessibility@^2.5.0", "eslint-plugin-vue"],
@@ -191,29 +191,6 @@ export const r2CommitGate: Recipe = {
   // Modifies the product's commit workflow → needs explicit opt-in.
   requiredFlags: ["--only lint | --yes"],
 
-  detect(ctx: RecipeContext): DetectResult {
-    const env = detectHookEnvironment(ctx.scope, ctx.gitRoot);
-    const notes: string[] = [];
-    if (env.husky) notes.push("husky detected");
-    if (env.hooksPath) notes.push(`core.hooksPath=${env.hooksPath}`);
-    if (env.lintStaged) notes.push("lint-staged detected");
-    if (env.preCommitFramework) notes.push("pre-commit framework detected");
-    return {
-      applicable: true,
-      alreadyApplied: false, // hook wiring is strategy-dependent; always re-check
-      ...(notes.length > 0 ? { notes } : {}),
-    };
-  },
-
-  plan(ctx: RecipeContext): Change[] {
-    const dry: RecipeContext = { ...ctx, dryRun: true };
-    return [
-      ...installAssets(dry),
-      ...installPlugin(dry).changes,
-      ...wireHook(dry).changes,
-    ];
-  },
-
   apply(ctx: RecipeContext): RecipeResult {
     const changes: Change[] = [];
     const messages: string[] = [];
@@ -260,6 +237,3 @@ export const r2CommitGate: Recipe = {
     return { ok: checks.every((c) => c.ok), checks };
   },
 };
-
-/** Exported for the CLI's auto-select + safety logic. */
-export { FRAMEWORK_DEPS, type HookStrategy };

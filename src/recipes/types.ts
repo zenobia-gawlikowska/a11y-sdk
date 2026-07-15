@@ -10,17 +10,24 @@ export type RecipeId = "r1-context" | "r2-commit-gate" | "r3-audit";
 /** Short alias accepted by `--only` (maps 1:1 onto a RecipeId). */
 export type RecipeAlias = "context" | "lint" | "audit";
 
+// Value arrays are the single source of truth for the unions below — CLI flag
+// validation and help text derive from them, so adding a variant here is
+// automatically accepted (and advertised) everywhere.
+
 /** AI config surfaces R1 can patch. */
-export type AiTarget = "claude" | "copilot" | "cursor" | "agents";
+export const AI_TARGETS = ["claude", "copilot", "cursor", "agents"] as const;
+export type AiTarget = (typeof AI_TARGETS)[number];
 
 /**
  * How R2 wires the commit gate. `core.hooksPath` is repo-global, so it must
  * never be forced onto a product repo that already manages hooks — hence the
  * split (see plan §1.4).
  */
-export type HookStrategy = "hookspath" | "integrate" | "ci-step" | "none";
+export const HOOK_STRATEGIES = ["hookspath", "integrate", "ci-step", "none"] as const;
+export type HookStrategy = (typeof HOOK_STRATEGIES)[number];
 
-export type CiProvider = "github" | "bitbucket";
+export const CI_PROVIDERS = ["github", "bitbucket"] as const;
+export type CiProvider = (typeof CI_PROVIDERS)[number];
 
 /**
  * Resolved, immutable context handed to every recipe. The CLI builds this once
@@ -38,10 +45,6 @@ export interface RecipeContext {
   hookStrategy: HookStrategy;
   /** Describe changes without touching disk. */
   dryRun: boolean;
-  /** Explicit consent for workflow-modifying recipes (R2). */
-  consent: boolean;
-  /** Whether the invocation is attached to a TTY. */
-  interactive: boolean;
   /** Run the package-manager install for the ESLint plugin (R2). */
   installDeps: boolean;
   provider: CiProvider;
@@ -80,14 +83,6 @@ export interface RecipeResult {
   error?: string;
 }
 
-export interface DetectResult {
-  /** Whether this recipe applies to the current context. */
-  applicable: boolean;
-  /** Whether the recipe's effect is already fully present (idempotency). */
-  alreadyApplied: boolean;
-  notes?: string[];
-}
-
 export interface VerifyResult {
   ok: boolean;
   checks: Array<{ name: string; ok: boolean; detail?: string }>;
@@ -101,8 +96,7 @@ export interface Recipe {
   idempotent: boolean;
   /** Flags a caller must pass for a non-interactive apply (e.g. consent). */
   requiredFlags: string[];
-  detect(ctx: RecipeContext): DetectResult;
-  plan(ctx: RecipeContext): Change[];
+  /** Idempotent install; describes (without writing) when ctx.dryRun is set. */
   apply(ctx: RecipeContext): RecipeResult;
   verify(ctx: RecipeContext): VerifyResult;
 }

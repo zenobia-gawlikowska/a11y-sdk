@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
-export type Framework = "react" | "vue" | "svelte" | "angular" | "unknown";
+/** Frameworks with a bundled ESLint a11y config — the source of truth for CLI validation. */
+export const FRAMEWORKS = ["react", "vue", "svelte", "angular"] as const;
+export type Framework = (typeof FRAMEWORKS)[number] | "unknown";
 
 interface PackageJson {
   dependencies?: Record<string, string>;

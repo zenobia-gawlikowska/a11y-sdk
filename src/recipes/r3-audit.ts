@@ -2,7 +2,6 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type {
   Change,
-  DetectResult,
   Recipe,
   RecipeContext,
   RecipeResult,
@@ -33,19 +32,6 @@ export const r3Audit: Recipe = {
   title: "On-demand axe-core audit",
   idempotent: true,
   requiredFlags: [],
-
-  detect(ctx: RecipeContext): DetectResult {
-    return {
-      applicable: true,
-      alreadyApplied: existsSync(
-        join(ctx.scope, ".a11y", "scripts", "audit.cjs"),
-      ),
-    };
-  },
-
-  plan(ctx: RecipeContext): Change[] {
-    return auditAssets({ ...ctx, dryRun: true });
-  },
 
   apply(ctx: RecipeContext): RecipeResult {
     const changes = auditAssets(ctx);

@@ -3,7 +3,6 @@ import { join } from "node:path";
 import type {
   AiTarget,
   Change,
-  DetectResult,
   Recipe,
   RecipeContext,
   RecipeResult,
@@ -110,25 +109,6 @@ export const r1Context: Recipe = {
   idempotent: true,
   requiredFlags: [],
 
-  detect(ctx: RecipeContext): DetectResult {
-    const knowledgePresent = existsSync(
-      join(ctx.scope, ".a11y", "context.md"),
-    );
-    const allPatched = ctx.ai.every((t) => {
-      const spec = aiFileSpec(t);
-      return fileContains(join(ctx.scope, spec.file), spec.marker);
-    });
-    return {
-      applicable: true,
-      alreadyApplied: knowledgePresent && allPatched,
-    };
-  },
-
-  plan(ctx: RecipeContext): Change[] {
-    const dry = { ...ctx, dryRun: true };
-    return [...knowledgeAssets(dry), ...patchAiFiles(dry)];
-  },
-
   apply(ctx: RecipeContext): RecipeResult {
     const changes = [...knowledgeAssets(ctx), ...patchAiFiles(ctx)];
     return {
@@ -149,9 +129,17 @@ export const r1Context: Recipe = {
       },
       ...ctx.ai.map((t) => {
         const spec = aiFileSpec(t);
+        const file = join(ctx.scope, spec.file);
+        const patched = fileContains(file, spec.marker);
+        // Create-only targets (.cursorrules, AGENTS.md) are deliberately left
+        // untouched when they pre-exist — that's a pass, not a failure.
+        const ok = patched || (spec.createOnly && existsSync(file));
         return {
           name: `${spec.file} references a11y context`,
-          ok: fileContains(join(ctx.scope, spec.file), spec.marker),
+          ok,
+          ...(ok && !patched
+            ? { detail: "pre-existing file left untouched (create-only)" }
+            : {}),
         };
       }),
     ];

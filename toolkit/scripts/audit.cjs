@@ -41,6 +41,21 @@ __export(audit_exports, {
 module.exports = __toCommonJS(audit_exports);
 var import_node_fs = __toESM(require("fs"), 1);
 var import_node_path = __toESM(require("path"), 1);
+var import_node_module = require("module");
+var import_node_url = require("url");
+async function loadPeer(specifier) {
+  const projectRequire = (0, import_node_module.createRequire)(import_node_path.default.join(process.cwd(), "package.json"));
+  try {
+    return projectRequire(specifier);
+  } catch {
+    try {
+      const resolved = projectRequire.resolve(specifier);
+      return await import((0, import_node_url.pathToFileURL)(resolved).href);
+    } catch {
+      return await import(specifier);
+    }
+  }
+}
 var RULE_TO_WCAG = {
   "image-alt": { criterion: "1.1.1", title: "Non-text Content" },
   "input-image-alt": { criterion: "1.1.1", title: "Non-text Content" },
@@ -117,7 +132,9 @@ var WCAG_21_22_RULES = [
   "autocomplete-valid"
 ];
 async function runAxeScan(page, level) {
-  const { AxeBuilder } = await import("@axe-core/playwright");
+  const { AxeBuilder } = await loadPeer(
+    "@axe-core/playwright"
+  );
   const tags = level === "AAA" ? [...WCAG_AA_TAGS, "wcag2aaa"] : WCAG_AA_TAGS;
   const axeResults = await new AxeBuilder({ page }).withTags(tags).options({
     rules: Object.fromEntries(
@@ -169,8 +186,8 @@ function formatResults(results) {
 async function runAudit(urlArg, opts) {
   let chromium;
   try {
-    ({ chromium } = await import("playwright"));
-    await import("@axe-core/playwright");
+    ({ chromium } = await loadPeer("playwright"));
+    await loadPeer("@axe-core/playwright");
   } catch {
     console.error(`
 a11y-sdk audit requires Playwright. Install it in your project:
@@ -231,13 +248,45 @@ Then re-run the audit.
   return rawResults.violations.length > 0 ? 1 : 0;
 }
 function parseAuditArgs(args) {
-  const url = args.find((a) => !a.startsWith("--"));
-  const level = args.find((a) => a.startsWith("--level="))?.split("=")[1] ?? (args.includes("--level") ? args[args.indexOf("--level") + 1] : void 0) ?? "AA";
-  const json = args.includes("--json");
-  return { url, opts: { level, json } };
+  const positionals = [];
+  let rawLevel;
+  let json = false;
+  let error;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === "--json") {
+      json = true;
+    } else if (a.startsWith("--level=")) {
+      rawLevel = a.slice("--level=".length);
+    } else if (a === "--level") {
+      const next = args[i + 1];
+      if (next !== void 0 && !next.startsWith("--")) {
+        rawLevel = next;
+        i++;
+      } else {
+        rawLevel = "";
+      }
+    } else if (a.startsWith("--")) {
+      error ??= `unknown audit flag "${a}" (expected --level AA|AAA, --json)`;
+    } else {
+      positionals.push(a);
+    }
+  }
+  const url = positionals[0];
+  let level = "AA";
+  if (rawLevel !== void 0 && rawLevel !== "") {
+    const norm = rawLevel.toUpperCase();
+    if (norm === "AA" || norm === "AAA") level = norm;
+    else error ??= `invalid --level "${rawLevel}" (expected AA|AAA)`;
+  }
+  return { url, opts: { level, json }, ...error ? { error } : {} };
 }
 async function main() {
-  const { url, opts } = parseAuditArgs(process.argv.slice(2));
+  const { url, opts, error } = parseAuditArgs(process.argv.slice(2));
+  if (error) {
+    console.error(error);
+    process.exit(2);
+  }
   process.exit(await runAudit(url, opts));
 }
 var entry = process.argv[1] ?? "";

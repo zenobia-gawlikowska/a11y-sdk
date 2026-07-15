@@ -23,8 +23,9 @@ flags a recipe requires before running.
 | `r2-commit-gate` | `lint` | Installs the framework-correct ESLint a11y flat-config + runner and wires a commit gate (see hook strategies below). **Modifies the commit workflow — requires consent.** | yes |
 | `r3-audit` | `audit` | Installs `.a11y/scripts/audit.cjs` (axe-core + Playwright) for on-demand audits with exact rule IDs and WCAG criteria. | yes |
 
-Each recipe implements the same surface: `detect()`, `plan()`, `apply()`,
-`verify()`, and an `idempotent` flag. Re-runs skip already-wired targets.
+Each recipe implements the same surface: `apply()` (which only describes changes
+under `--dry-run`), `verify()`, and an `idempotent` flag. Re-runs skip
+already-wired targets.
 
 ## `init` flags
 
@@ -66,22 +67,26 @@ So R2 splits:
 - an existing hook manager is detected → `integrate`
 - otherwise (embedded scope, or a foreign `core.hooksPath`) → `ci-step`
 
-If `hookspath` is requested explicitly but the repo already manages hooks, the
-installer **refuses** and tells you to pick `integrate` or `ci-step`.
+If `hookspath` is requested explicitly but the repo already manages hooks — or
+`--scope` is not the git root (`core.hooksPath` is repo-global, so an embedded
+scope would gate the entire repo) — the installer **refuses** and tells you to
+pick `integrate` or `ci-step`.
 
 **Consent.** Because R2 changes the commit workflow, it is never applied silently
-in a non-interactive run. Pass `--yes`, or scope the run with `--only lint`, to
+in a non-interactive run. Pass `--yes`, or scope the run to the gate alone with
+`--only lint` (including `lint` in a larger `--only` list does not count), to
 opt in. Otherwise R2 reports `needs-consent` and is skipped.
 
 ## CI snippets
 
 ```bash
-a11y-sdk emit ci --provider github|bitbucket [--scope <dir>] [--audit-url <url>]
+a11y-sdk emit ci --provider github|bitbucket [--scope <dir>] [--framework <fw>] [--audit-url <url>]
 ```
 
 Prints a pipeline step that installs the toolkit pinned to this tag, runs the
-a11y lint gate, and (with `--audit-url`) an axe-core audit. This is the artifact
-`--hook-strategy ci-step` points teams at.
+a11y lint gate with the framework-correct ESLint config (auto-detected from the
+scope; override with `--framework`), and (with `--audit-url`) an axe-core audit.
+This is the artifact `--hook-strategy ci-step` points teams at.
 
 ## `audit` subcommand
 

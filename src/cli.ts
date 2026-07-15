@@ -1,15 +1,19 @@
+import { realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { detectFramework, type Framework } from "./detect-framework.js";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { detectFramework, FRAMEWORKS, type Framework } from "./detect-framework.js";
 import { VERSION } from "./index.js";
 import { RECIPES, resolveRecipe } from "./recipes/registry.js";
-import type {
-  AiTarget,
-  CiProvider,
-  HookStrategy,
-  Recipe,
-  RecipeContext,
-  RecipeResult,
+import {
+  AI_TARGETS,
+  CI_PROVIDERS,
+  HOOK_STRATEGIES,
+  type AiTarget,
+  type CiProvider,
+  type HookStrategy,
+  type Recipe,
+  type RecipeContext,
+  type RecipeResult,
 } from "./recipes/types.js";
 import {
   detectHookEnvironment,
@@ -97,16 +101,14 @@ function str(flags: Parsed["flags"], name: string): string | undefined {
 // Resolution helpers
 // ---------------------------------------------------------------------------
 
-const ALL_AI: AiTarget[] = ["claude", "copilot", "cursor", "agents"];
-
 function resolveAi(raw: string | undefined): AiTarget[] | { error: string } {
-  if (!raw || raw === "all") return ALL_AI;
+  if (!raw || raw === "all") return [...AI_TARGETS];
   const parts = raw.split(",").map((s) => s.trim());
   const out: AiTarget[] = [];
   for (const p of parts) {
-    if (p === "all") return ALL_AI;
-    if ((ALL_AI as string[]).includes(p)) out.push(p as AiTarget);
-    else return { error: `unknown --ai target "${p}" (expected claude|copilot|cursor|agents|all)` };
+    if (p === "all") return [...AI_TARGETS];
+    if ((AI_TARGETS as readonly string[]).includes(p)) out.push(p as AiTarget);
+    else return { error: `unknown --ai target "${p}" (expected ${AI_TARGETS.join("|")}|all)` };
   }
   return out;
 }
@@ -116,8 +118,14 @@ function resolveFramework(
   scope: string,
 ): Framework | { error: string } {
   if (!raw || raw === "auto") return detectFramework(scope);
-  if (["react", "vue", "svelte", "angular"].includes(raw)) return raw as Framework;
-  return { error: `unknown --framework "${raw}" (expected auto|react|vue|svelte|angular)` };
+  if ((FRAMEWORKS as readonly string[]).includes(raw)) return raw as Framework;
+  return { error: `unknown --framework "${raw}" (expected auto|${FRAMEWORKS.join("|")})` };
+}
+
+function resolveProvider(raw: string | undefined): CiProvider | { error: string } {
+  if (!raw) return "github";
+  if ((CI_PROVIDERS as readonly string[]).includes(raw)) return raw as CiProvider;
+  return { error: `unknown --provider "${raw}" (expected ${CI_PROVIDERS.join("|")})` };
 }
 
 function resolveRecipes(raw: string | undefined): Recipe[] | { error: string } {
@@ -147,13 +155,25 @@ function resolveHookStrategy(
   const standalone = gitRoot !== null && scope === gitRoot;
 
   if (raw) {
-    if (!["hookspath", "integrate", "ci-step", "none"].includes(raw)) {
+    if (!(HOOK_STRATEGIES as readonly string[]).includes(raw)) {
       return { strategy: "none", error: `unknown --hook-strategy "${raw}"` };
     }
     const strategy = raw as HookStrategy;
     if (strategy === "hookspath") {
       if (gitRoot === null) {
         return { strategy, error: "hookspath requires a git repository (run git init or use --hook-strategy none)" };
+      }
+      if (!standalone) {
+        // core.hooksPath is repo-global: pointed at an embedded scope it would
+        // gate every commit in the repo while the hook reads config from the
+        // wrong directory. Refuse rather than half-work.
+        return {
+          strategy,
+          error:
+            "refusing hookspath: --scope is not the git root, but core.hooksPath " +
+            "is repo-global — the hook would gate the whole repo while missing " +
+            "the scoped .a11y config. Use --hook-strategy integrate or ci-step.",
+        };
       }
       if (!hooksPathIsSafe(env)) {
         return {
@@ -211,9 +231,13 @@ async function cmdInit(parsed: Parsed, env: CliEnv): Promise<CliOutcome> {
   const recipes = resolveRecipes(str(flags, "only"));
   if ("error" in recipes) return fail(recipes.error);
   const onlyGiven = typeof str(flags, "only") === "string";
-  const explicitLint = recipes.some((r) => r.id === "r2-commit-gate") && onlyGiven;
+  // Consent via --only requires the run to be scoped to the commit gate alone;
+  // merely including lint in a larger list is not an explicit opt-in.
+  const explicitLint =
+    onlyGiven && recipes.length === 1 && recipes[0]!.id === "r2-commit-gate";
 
-  const provider = (str(flags, "provider") as CiProvider) ?? "github";
+  const provider = resolveProvider(str(flags, "provider"));
+  if (typeof provider === "object") return fail(provider.error);
   const hook = resolveHookStrategy(str(flags, "hook-strategy"), scope, gitRoot);
   if (hook.error) return fail(hook.error);
 
@@ -230,8 +254,6 @@ async function cmdInit(parsed: Parsed, env: CliEnv): Promise<CliOutcome> {
     ai,
     hookStrategy: hook.strategy,
     dryRun,
-    consent,
-    interactive: env.interactive,
     installDeps,
     provider,
     version: env.version,
@@ -296,18 +318,23 @@ function cmdEmit(parsed: Parsed, env: CliEnv): CliOutcome {
     return fail(`unknown emit target "${sub ?? ""}" (expected: emit ci)`);
   }
   const { flags } = parsed;
-  const provider = (str(flags, "provider") as CiProvider) ?? "github";
-  if (!["github", "bitbucket"].includes(provider)) {
-    return fail(`unknown --provider "${provider}" (expected github|bitbucket)`);
-  }
+  const provider = resolveProvider(str(flags, "provider"));
+  if (typeof provider === "object") return fail(provider.error);
   const scopeArg = str(flags, "scope");
   const scope = scopeArg ? scopeArg : ".";
   const auditUrl = str(flags, "audit-url");
+
+  // The emitted lint step must run the framework-correct ESLint config —
+  // init installs only that framework's plugin, so react.cjs on a Vue repo
+  // would fail with MODULE_NOT_FOUND in CI.
+  const framework = resolveFramework(str(flags, "framework"), resolve(env.cwd, scope));
+  if (typeof framework === "object") return fail(framework.error);
 
   const snippet = emitCiSnippet({
     provider,
     version: env.version,
     scope,
+    framework,
     ...(auditUrl ? { auditUrl } : {}),
   });
   return { exitCode: 0, stdout: snippet, stderr: "" };
@@ -342,18 +369,15 @@ function cmdRecipes(parsed: Parsed, env: CliEnv): CliOutcome {
   return { exitCode: 0, stdout: lines.join("\n"), stderr: "" };
 }
 
-async function cmdAudit(parsed: Parsed): Promise<CliOutcome> {
+async function cmdAudit(args: string[]): Promise<CliOutcome> {
+  // audit owns its argv (parseAuditArgs is shared with the toolkit script) —
+  // re-parsing through the generic flag parser would let an unknown flag
+  // swallow the URL as its value.
+  const { url, opts, error } = parseAuditArgs(args);
+  if (error) return fail(error);
   // audit prints directly to stdout/stderr and returns an exit code.
-  const { url, opts } = parseAuditArgs(parsed._.slice(1).concat(rebuildAuditFlags(parsed.flags)));
   const code = await runAudit(url, opts);
   return { exitCode: code, stdout: "", stderr: "" };
-}
-
-function rebuildAuditFlags(flags: Parsed["flags"]): string[] {
-  const out: string[] = [];
-  if (typeof flags["level"] === "string") out.push("--level", flags["level"]);
-  if (flags["json"] === true) out.push("--json");
-  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -434,6 +458,7 @@ init flags:
 emit ci flags:
   --provider <github|bitbucket>   Pipeline flavour (default: github)
   --scope <dir>                   Install target for the step
+  --framework <auto|react|vue|svelte|angular>   ESLint config the lint step runs
   --audit-url <url>               Include an axe-core audit step
 
 Docs: docs/recipes.md`;
@@ -461,7 +486,7 @@ export async function runCli(argv: string[], env: CliEnv): Promise<CliOutcome> {
     case "recipes":
       return cmdRecipes(parsed, env);
     case "audit":
-      return cmdAudit(parsed);
+      return cmdAudit(argv.slice(argv.indexOf("audit") + 1));
     default:
       return { exitCode: 2, stdout: "", stderr: `a11y-sdk: unknown command "${command}"\n\n${HELP}` };
   }
@@ -479,7 +504,11 @@ function defaultToolkitDir(): string {
 
 const isMain = (() => {
   try {
-    return process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
+    if (process.argv[1] === undefined) return false;
+    // realpathSync resolves the npm .bin symlink; pathToFileURL percent-encodes
+    // (spaces etc.) the same way Node built import.meta.url. Naive
+    // `file://${argv[1]}` matches neither, making the CLI a silent no-op.
+    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
   } catch {
     return false;
   }

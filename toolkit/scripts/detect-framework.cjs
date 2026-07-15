@@ -21,11 +21,13 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/detect-framework.ts
 var detect_framework_exports = {};
 __export(detect_framework_exports, {
+  FRAMEWORKS: () => FRAMEWORKS,
   detectFramework: () => detectFramework
 });
 module.exports = __toCommonJS(detect_framework_exports);
 var import_node_fs = require("fs");
 var import_node_path = require("path");
+var FRAMEWORKS = ["react", "vue", "svelte", "angular"];
 function readDeps(projectRoot) {
   try {
     const raw = (0, import_node_fs.readFileSync)((0, import_node_path.join)(projectRoot, "package.json"), "utf8");
@@ -53,5 +55,6 @@ if ((0, import_node_path.basename)(process.argv[1] ?? "").startsWith("detect-fra
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  FRAMEWORKS,
   detectFramework
 });

@@ -104,6 +104,18 @@ describe("init — apply", () => {
     await runCli(["init", "--only", "context", "--ai", "cursor"], env(root));
     expect(readFileSync(join(root, ".cursorrules"), "utf8")).toBe("# my rules\n");
   });
+
+  it("pre-existing create-only file passes verify (not a failure)", async () => {
+    const root = project();
+    writeFileSync(join(root, ".cursorrules"), "# my rules\n", "utf8");
+    const out = await runCli(
+      ["init", "--only", "context", "--ai", "cursor", "--json"],
+      env(root),
+    );
+    const verify = (out.json as { verify: Array<{ id: string; ok: boolean }> }).verify;
+    expect(verify.find((v) => v.id === "r1-context")?.ok).toBe(true);
+    expect(out.stdout).not.toContain("FAILED");
+  });
 });
 
 describe("R2 hook-strategy split (plan §1.4)", () => {
@@ -130,6 +142,33 @@ describe("R2 hook-strategy split (plan §1.4)", () => {
     mkdirSync(join(root, ".husky"));
     const out = await runCli(
       ["init", "--only", "lint", "--yes", "--hook-strategy", "hookspath"],
+      env(root),
+    );
+    expect(out.exitCode).toBe(2);
+    expect(out.stderr).toContain("refusing hookspath");
+    expect(hooksPath(root)).toBeNull();
+  });
+
+  it("--only including lint among other recipes is NOT consent", async () => {
+    const root = project({ pkg: { name: "s", dependencies: { react: "^18" } } });
+    const out = await runCli(
+      ["init", "--only", "context,lint,audit", "--no-install"],
+      env(root),
+    );
+    expect(out.stdout).toContain("needs-consent");
+    expect(hooksPath(root)).toBeNull();
+  });
+
+  it("explicit hookspath with an embedded --scope is refused (repo-global setting)", async () => {
+    const root = project({ pkg: { name: "m" } });
+    mkdirSync(join(root, "packages", "app"), { recursive: true });
+    writeFileSync(
+      join(root, "packages", "app", "package.json"),
+      JSON.stringify({ name: "app", dependencies: { react: "^18" } }),
+      "utf8",
+    );
+    const out = await runCli(
+      ["init", "--scope", "packages/app", "--only", "lint", "--yes", "--no-install", "--hook-strategy", "hookspath"],
       env(root),
     );
     expect(out.exitCode).toBe(2);
@@ -182,6 +221,26 @@ describe("emit ci (plan §1.5)", () => {
     expect(out.stdout).toContain("bitbucket-pipelines.yml");
     expect(out.stdout).toContain("--scope context");
   });
+
+  it("lint step runs the framework-correct ESLint config", async () => {
+    const root = project({ pkg: { name: "v", dependencies: { vue: "^3" } } });
+    const out = await runCli(["emit", "ci"], env(root));
+    expect(out.stdout).toContain(".a11y/config/eslint/vue.cjs");
+    expect(out.stdout).not.toContain("react.cjs");
+  });
+
+  it("undetected framework falls back to react with an adjust hint", async () => {
+    const root = project({ pkg: { name: "u" } });
+    const out = await runCli(["emit", "ci", "--provider", "bitbucket"], env(root));
+    expect(out.stdout).toContain(".a11y/config/eslint/react.cjs");
+    expect(out.stdout).toContain("Framework not detected");
+  });
+
+  it("--framework overrides detection", async () => {
+    const root = project({ pkg: { name: "v", dependencies: { vue: "^3" } } });
+    const out = await runCli(["emit", "ci", "--framework", "svelte"], env(root));
+    expect(out.stdout).toContain(".a11y/config/eslint/svelte.cjs");
+  });
 });
 
 describe("argument validation", () => {
@@ -203,5 +262,21 @@ describe("argument validation", () => {
     const out = await runCli(["frobnicate"], env(process.cwd()));
     expect(out.exitCode).toBe(2);
     expect(out.stderr).toContain("unknown command");
+  });
+
+  it("rejects unknown --provider on init (same rule as emit ci)", async () => {
+    const root = project();
+    const out = await runCli(["init", "--provider", "gitlab"], env(root));
+    expect(out.exitCode).toBe(2);
+    expect(out.stderr).toContain("unknown --provider");
+  });
+
+  it("audit rejects unknown flags instead of losing the URL", async () => {
+    const out = await runCli(
+      ["audit", "--somethingunknown", "http://localhost:3000"],
+      env(process.cwd()),
+    );
+    expect(out.exitCode).toBe(2);
+    expect(out.stderr).toContain("unknown audit flag");
   });
 });
