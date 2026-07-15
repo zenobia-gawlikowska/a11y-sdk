@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
-export type Framework = "react" | "vue" | "svelte" | "angular" | "unknown";
+/** Frameworks with a bundled ESLint a11y config — the source of truth for CLI validation. */
+export const FRAMEWORKS = ["react", "vue", "svelte", "angular"] as const;
+export type Framework = (typeof FRAMEWORKS)[number] | "unknown";
 
 interface PackageJson {
   dependencies?: Record<string, string>;
@@ -39,14 +41,13 @@ export function detectFramework(projectRoot: string): Framework {
   return "unknown";
 }
 
-// CLI entry point — used by setup.sh: node detect-framework.cjs <projectRoot>
-// The argv[1] check matters because this file is also bundled into
-// pre-commit.cjs, where `require.main === module` is true for the bundle
-// entry and would print the framework name on every hook run.
-if (
-  require.main === module &&
-  basename(process.argv[1] ?? "").startsWith("detect-framework")
-) {
+// CLI entry point — used by setup.sh: node detect-framework.cjs <projectRoot>.
+// This file is bundled into both pre-commit.cjs (CJS) and the ESM CLI, so the
+// guard is argv-based only: `require.main === module` would be true for the
+// pre-commit.cjs bundle entry (printing the framework on every hook run) and
+// `module` is undefined under ESM (crashing the CLI at import). The basename
+// check fires only when invoked directly as detect-framework.*.
+if (basename(process.argv[1] ?? "").startsWith("detect-framework")) {
   const projectRoot = process.argv[2] ?? process.cwd();
   process.stdout.write(detectFramework(projectRoot) + "\n");
 }

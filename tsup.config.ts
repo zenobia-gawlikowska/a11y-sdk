@@ -27,4 +27,15 @@ export default defineConfig([
     external: ["eslint", "playwright", "@axe-core/playwright"],
     banner: { js: "#!/usr/bin/env node" },
   },
+  // CLI target — the invokable installer (`npx a11y-sdk init`). ESM + shebang.
+  {
+    entry: { cli: "src/cli.ts" },
+    format: ["esm"],
+    outDir: "dist",
+    clean: false,
+    sourcemap: false,
+    // Peer deps only reached via the audit subcommand's dynamic import.
+    external: ["eslint", "playwright", "@axe-core/playwright"],
+    banner: { js: "#!/usr/bin/env node" },
+  },
 ]);

@@ -32,12 +32,30 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var audit_exports = {};
 __export(audit_exports, {
   BEST_PRACTICE_RULES: () => BEST_PRACTICE_RULES,
+  formatJson: () => formatJson,
   formatResults: () => formatResults,
+  parseAuditArgs: () => parseAuditArgs,
+  runAudit: () => runAudit,
   runAxeScan: () => runAxeScan
 });
 module.exports = __toCommonJS(audit_exports);
 var import_node_fs = __toESM(require("fs"), 1);
 var import_node_path = __toESM(require("path"), 1);
+var import_node_module = require("module");
+var import_node_url = require("url");
+async function loadPeer(specifier) {
+  const projectRequire = (0, import_node_module.createRequire)(import_node_path.default.join(process.cwd(), "package.json"));
+  try {
+    return projectRequire(specifier);
+  } catch {
+    try {
+      const resolved = projectRequire.resolve(specifier);
+      return await import((0, import_node_url.pathToFileURL)(resolved).href);
+    } catch {
+      return await import(specifier);
+    }
+  }
+}
 var RULE_TO_WCAG = {
   "image-alt": { criterion: "1.1.1", title: "Non-text Content" },
   "input-image-alt": { criterion: "1.1.1", title: "Non-text Content" },
@@ -114,7 +132,9 @@ var WCAG_21_22_RULES = [
   "autocomplete-valid"
 ];
 async function runAxeScan(page, level) {
-  const { AxeBuilder } = await import("@axe-core/playwright");
+  const { AxeBuilder } = await loadPeer(
+    "@axe-core/playwright"
+  );
   const tags = level === "AAA" ? [...WCAG_AA_TAGS, "wcag2aaa"] : WCAG_AA_TAGS;
   const axeResults = await new AxeBuilder({ page }).withTags(tags).options({
     rules: Object.fromEntries(
@@ -122,6 +142,24 @@ async function runAxeScan(page, level) {
     )
   }).analyze();
   return { violations: axeResults.violations };
+}
+function formatJson(results) {
+  const violations = results.violations.map((v) => {
+    const wcag = RULE_TO_WCAG[v.id];
+    return {
+      ruleId: v.id,
+      impact: v.impact ?? "minor",
+      wcag: wcag ? `${wcag.criterion} ${wcag.title}` : null,
+      criterion: wcag ? wcag.criterion : null,
+      nodes: v.nodes.length,
+      selectors: v.nodes.map((n) => n.target.join(", "))
+    };
+  });
+  return JSON.stringify(
+    { violationCount: violations.length, violations },
+    null,
+    2
+  );
 }
 function formatResults(results) {
   const { violations } = results;
@@ -145,10 +183,11 @@ function formatResults(results) {
   }
   return lines.join("\n").trimEnd();
 }
-async function main() {
+async function runAudit(urlArg, opts) {
+  let chromium;
   try {
-    require.resolve("playwright");
-    require.resolve("@axe-core/playwright");
+    ({ chromium } = await loadPeer("playwright"));
+    await loadPeer("@axe-core/playwright");
   } catch {
     console.error(`
 a11y-sdk audit requires Playwright. Install it in your project:
@@ -158,29 +197,25 @@ a11y-sdk audit requires Playwright. Install it in your project:
 
 Then re-run the audit.
 `);
-    process.exit(3);
+    return 3;
   }
-  const args = process.argv.slice(2);
-  const urlArg = args.find((a) => !a.startsWith("--"));
-  const level = args.find((a) => a.startsWith("--level="))?.split("=")[1] ?? args[args.indexOf("--level") + 1] ?? "AA";
   if (!urlArg) {
-    console.error("Usage: node audit.cjs <url> [--level AA|AAA]");
-    process.exit(2);
+    console.error("Usage: audit <url> [--level AA|AAA] [--json]");
+    return 2;
   }
   let url;
   try {
     url = new URL(urlArg);
   } catch {
     console.error(`Invalid URL: ${urlArg}`);
-    process.exit(2);
+    return 2;
   }
-  const { chromium } = await import("playwright");
   let browser;
   try {
     browser = await chromium.launch({ headless: true });
   } catch {
     console.error(`Failed to launch Chromium. Run: npx playwright install chromium`);
-    process.exit(2);
+    return 2;
   }
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -189,31 +224,73 @@ Then re-run the audit.
     if (!response || !response.ok()) {
       console.error(`Page unreachable or returned error: ${url}`);
       await browser.close();
-      process.exit(2);
+      return 2;
     }
   } catch {
     console.error(`Could not reach ${url} \u2014 is the dev server running?`);
     await browser.close();
-    process.exit(2);
+    return 2;
   }
   let rawResults;
   try {
-    rawResults = await runAxeScan(page, level);
+    rawResults = await runAxeScan(page, opts.level);
   } catch (err) {
     console.error("Audit error:", err);
     await browser.close();
-    process.exit(2);
+    return 2;
   }
   await browser.close();
   const resultsDir = import_node_path.default.join(process.cwd(), ".a11y");
   if (import_node_fs.default.existsSync(resultsDir)) {
     import_node_fs.default.writeFileSync(import_node_path.default.join(resultsDir, "audit-results.json"), JSON.stringify(rawResults, null, 2));
   }
-  const output = formatResults(rawResults);
-  console.log(output);
-  process.exit(rawResults.violations.length > 0 ? 1 : 0);
+  console.log(opts.json ? formatJson(rawResults) : formatResults(rawResults));
+  return rawResults.violations.length > 0 ? 1 : 0;
 }
-var isMain = typeof require !== "undefined" ? require.main === module : process.argv[1]?.endsWith("audit.ts") || process.argv[1]?.endsWith("audit.cjs");
+function parseAuditArgs(args) {
+  const positionals = [];
+  let rawLevel;
+  let json = false;
+  let error;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === "--json") {
+      json = true;
+    } else if (a.startsWith("--level=")) {
+      rawLevel = a.slice("--level=".length);
+    } else if (a === "--level") {
+      const next = args[i + 1];
+      if (next !== void 0 && !next.startsWith("--")) {
+        rawLevel = next;
+        i++;
+      } else {
+        rawLevel = "";
+      }
+    } else if (a.startsWith("--")) {
+      error ??= `unknown audit flag "${a}" (expected --level AA|AAA, --json)`;
+    } else {
+      positionals.push(a);
+    }
+  }
+  const url = positionals[0];
+  let level = "AA";
+  if (rawLevel !== void 0 && rawLevel !== "") {
+    const norm = rawLevel.toUpperCase();
+    if (norm === "AA" || norm === "AAA") level = norm;
+    else error ??= `invalid --level "${rawLevel}" (expected AA|AAA)`;
+  }
+  return { url, opts: { level, json }, ...error ? { error } : {} };
+}
+async function main() {
+  const { url, opts, error } = parseAuditArgs(process.argv.slice(2));
+  if (error) {
+    console.error(error);
+    process.exit(2);
+  }
+  process.exit(await runAudit(url, opts));
+}
+var entry = process.argv[1] ?? "";
+var isMain = entry.endsWith("audit.ts") || entry.endsWith("audit.cjs");
 if (isMain) {
   main().catch((err) => {
     console.error("Unexpected error:", err);
@@ -223,6 +300,9 @@ if (isMain) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   BEST_PRACTICE_RULES,
+  formatJson,
   formatResults,
+  parseAuditArgs,
+  runAudit,
   runAxeScan
 });

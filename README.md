@@ -20,19 +20,42 @@ Three layers, each independent:
 
 ## Installation
 
+Invoke the pinned installer — no clone, no manual copy:
+
 ```bash
-cp -r toolkit/ <your-project>/.a11y
-cd <your-project>
-bash .a11y/scripts/setup.sh
+npx a11y-sdk@<tag> init            # standalone (installs all recipes)
+npx a11y-sdk@<tag> init --dry-run  # preview the plan, change nothing
 ```
 
-`setup.sh` does four things:
-1. Wires the git pre-commit hook (`git config core.hooksPath .a11y/hooks`)
-2. Detects your framework (React, Vue, Svelte, Angular) and installs the right ESLint a11y plugin — plus ESLint itself if your package manager didn't pull it in as a peer dependency (yarn classic never does)
-3. Patches your `CLAUDE.md` / `.cursorrules` / `AGENTS.md` to point your AI at the a11y rules
-4. Reports what it did
+`init` composes three **recipes** — `r1-context`, `r2-commit-gate`, `r3-audit` —
+each scope-aware and idempotent. It:
+1. Installs `.a11y/context.md` + rules and patches `CLAUDE.md` / `.cursorrules` / `AGENTS.md` / Copilot instructions (R1)
+2. Detects your framework and wires the ESLint a11y commit gate — plus ESLint itself if your package manager didn't pull it in as a peer dependency, e.g. yarn classic (R2 — see hook strategies below)
+3. Installs the on-demand axe-core audit (R3)
+4. Prints what it changed (add `--json` for a machine-readable result)
+
+Because R2 modifies your commit workflow, it needs consent in a non-interactive
+run — pass `--yes` or `--only lint`. The full flag surface and recipe catalog are
+documented in [`docs/recipes.md`](docs/recipes.md).
+
+> **Legacy path.** The manual `cp -r toolkit/ <your-project>/.a11y && bash
+> .a11y/scripts/setup.sh` still works (standalone, `hookspath` only). The CLI
+> supersedes it with scope awareness, hook-strategy safety, and dry-run/JSON.
 
 **Requires:** git ≥ 2.9, Node ≥ 18.
+
+### CLI commands
+
+```bash
+a11y-sdk init [flags]                     # install/compose recipes
+a11y-sdk recipes [--json]                 # the recipe catalog / manifest
+a11y-sdk emit ci --provider github|bitbucket [--scope <dir>] [--audit-url <url>]
+a11y-sdk audit <url> [--level AA|AAA] [--json]
+```
+
+Key `init` flags: `--scope <dir>` (embedded mode), `--ai claude|copilot|cursor|agents|all`,
+`--framework auto|react|vue|svelte|angular`, `--only context,lint,audit`,
+`--hook-strategy hookspath|integrate|ci-step|none`, `--dry-run`, `--json`, `--yes`.
 
 ## Layer 1 — AI context injection
 
@@ -157,13 +180,18 @@ If Playwright isn't installed, the script prints the exact commands and exits wi
 
 ```
 src/                        # TypeScript source
+  cli.ts                    # Invokable installer — `a11y-sdk` bin
+  recipes/                  # Recipe registry (r1-context, r2-commit-gate, r3-audit)
+  ci-templates.ts           # `emit ci` snippets (github/bitbucket)
   audit.ts                  # Layer 3 — axe-core audit runner
   behave.ts                 # Layer 3 — behavioral audit recipes
   pre-commit.ts             # Layer 2 — pre-commit hook runner
   contract-checks.ts        # Layer 2 — static source contract checks
   detect-framework.ts       # Framework detection
   config-loader.ts          # Config loader
-toolkit/                    # Distributable — copy this as .a11y/
+docs/recipes.md             # Recipe catalog + flag reference (product surface)
+recipes.json                # Machine-readable recipe manifest (generated)
+toolkit/                    # Distributable — copied into .a11y/ by the installer
   context.md                # Master a11y knowledge document
   rules/                    # Per-pattern deep-dive docs
   scripts/                  # Built CJS executables
@@ -216,7 +244,8 @@ pnpm install
 pnpm typecheck
 pnpm test
 pnpm build:toolkit          # builds toolkit/scripts/*.cjs
-pnpm build                  # builds dist/ (library)
+pnpm build                  # builds dist/ (library + a11y-sdk CLI)
+pnpm gen:recipes            # regenerates recipes.json from the registry
 ```
 
 ## Standards coverage

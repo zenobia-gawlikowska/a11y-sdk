@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "recipes": [
+    {
+      "id": "r1-context",
+      "alias": "context",
+      "title": "AI context injection",
+      "idempotent": true,
+      "requiredFlags": []
+    },
+    {
+      "id": "r2-commit-gate",
+      "alias": "lint",
+      "title": "Commit gate (ESLint a11y + hook)",
+      "idempotent": true,
+      "requiredFlags": [
+        "--only lint | --yes"
+      ]
+    },
+    {
+      "id": "r3-audit",
+      "alias": "audit",
+      "title": "On-demand axe-core audit",
+      "idempotent": true,
+      "requiredFlags": []
+    }
+  ]
+}
